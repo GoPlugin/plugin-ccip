@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 
 	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 )

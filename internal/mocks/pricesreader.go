@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	ocrtypes "github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	ocrtypes "github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 	"github.com/stretchr/testify/mock"
 )
 

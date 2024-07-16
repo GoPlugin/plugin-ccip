@@ -5,8 +5,8 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
-	"github.com/smartcontractkit/libocr/commontypes"
-	libocrtypes "github.com/smartcontractkit/libocr/ragep2p/types"
+	"github.com/goplugin/plugin-libocr/commontypes"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 )
 
 func SetupConfigInfo(chainSelector ccipocr3.ChainSelector,

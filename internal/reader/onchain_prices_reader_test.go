@@ -8,7 +8,7 @@ import (
 
 	"github.com/goplugin/plugin-ccip/internal/mocks"
 
-	ocr2types "github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	ocr2types "github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

@@ -7,11 +7,11 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	libocrtypes "github.com/smartcontractkit/libocr/ragep2p/types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-ccip/internal/mocks"
 
-	"github.com/smartcontractkit/libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/commontypes"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"

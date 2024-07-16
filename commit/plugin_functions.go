@@ -8,7 +8,7 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"

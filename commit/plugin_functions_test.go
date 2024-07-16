@@ -11,9 +11,9 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	libocrtypes "github.com/smartcontractkit/libocr/ragep2p/types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 

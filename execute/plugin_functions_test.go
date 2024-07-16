@@ -7,8 +7,8 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/smartcontractkit/libocr/commontypes"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	"github.com/goplugin/plugin-libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 
 	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 

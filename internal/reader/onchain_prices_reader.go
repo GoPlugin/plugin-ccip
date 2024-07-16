@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	ocr2types "github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	ocr2types "github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 	"golang.org/x/sync/errgroup"
 
 	commontypes "github.com/goplugin/plugin-common/pkg/types"

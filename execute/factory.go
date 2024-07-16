@@ -3,7 +3,7 @@ package execute
 import (
 	"context"
 
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/ocr3types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
 	"google.golang.org/grpc"
 
 	"github.com/goplugin/plugin-common/pkg/types/core"

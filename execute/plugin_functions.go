@@ -9,8 +9,8 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"golang.org/x/crypto/sha3"
 
-	"github.com/smartcontractkit/libocr/commontypes"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	"github.com/goplugin/plugin-libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 
 	"github.com/goplugin/plugin-common/pkg/hashutil"
 	"github.com/goplugin/plugin-common/pkg/merklemulti"

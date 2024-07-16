@@ -3,7 +3,7 @@ package pluginconfig
 import (
 	"time"
 
-	"github.com/smartcontractkit/libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/commontypes"
 
 	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 )

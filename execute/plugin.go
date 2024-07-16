@@ -14,10 +14,10 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-	"github.com/smartcontractkit/libocr/commontypes"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/ocr3types"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
-	libocrtypes "github.com/smartcontractkit/libocr/ragep2p/types"
+	"github.com/goplugin/plugin-libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
 	"github.com/goplugin/plugin-ccip/internal/reader"

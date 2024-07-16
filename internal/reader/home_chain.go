@@ -8,7 +8,7 @@ import (
 
 	mapset "github.com/deckarep/golang-set/v2"
 
-	libocrtypes "github.com/smartcontractkit/libocr/ragep2p/types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/services"

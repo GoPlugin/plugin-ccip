@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 	"github.com/stretchr/testify/assert"
 )
 

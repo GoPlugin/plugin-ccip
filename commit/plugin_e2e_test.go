@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/smartcontractkit/libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/commontypes"
 
 	helpers "github.com/goplugin/plugin-ccip/internal/libs/testhelpers"
 	"github.com/goplugin/plugin-ccip/internal/mocks"
@@ -19,9 +19,9 @@ import (
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 	"github.com/goplugin/plugin-ccip/plugintypes"
 
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/ocr3types"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/types"
-	libocrtypes "github.com/smartcontractkit/libocr/ragep2p/types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"

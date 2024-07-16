@@ -11,10 +11,10 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/types/core"
 
-	"github.com/smartcontractkit/libocr/commontypes"
-	"github.com/smartcontractkit/libocr/offchainreporting2plus/ocr3types"
-	ocr2types "github.com/smartcontractkit/libocr/offchainreporting2plus/types"
-	libocrtypes "github.com/smartcontractkit/libocr/ragep2p/types"
+	"github.com/goplugin/plugin-libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
+	ocr2types "github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 )
 
 // PluginFactoryConstructor implements common OCR3ReportingPluginClient and is used for initializing a plugin factory
