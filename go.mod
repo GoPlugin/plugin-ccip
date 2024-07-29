@@ -4,8 +4,8 @@ go 1.21.7
 
 require (
 	github.com/deckarep/golang-set/v2 v2.6.0
-	github.com/goplugin/plugin-common v0.1.7-0.20240708093742-683c10b045f7
-	github.com/goplugin/plugin-libocr v0.0.0-20240419185742-fd3cab206b2c
+	github.com/goplugin/plugin-common v0.2.0
+	github.com/goplugin/plugin-libocr v0.0.1
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.24.0
 	golang.org/x/sync v0.7.0
