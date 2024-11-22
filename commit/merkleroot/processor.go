@@ -3,14 +3,16 @@ package merkleroot
 import (
 	"github.com/goplugin/plugin-libocr/commontypes"
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	"github.com/goplugin/plugin-common/pkg/services"
 
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 	"github.com/goplugin/plugin-ccip/internal/reader"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 )
 
@@ -19,22 +21,25 @@ import (
 // It's setup to use RMN to query which messages to include in the merkle root and ensures
 // the newly built merkle roots are the same as RMN roots.
 type Processor struct {
-	oracleID      commontypes.OracleID
-	offchainCfg   pluginconfig.CommitOffchainConfig
-	destChain     cciptypes.ChainSelector
-	lggr          logger.Logger
-	observer      Observer
-	ccipReader    readerpkg.CCIPReader
-	reportingCfg  ocr3types.ReportingPluginConfig
-	chainSupport  plugincommon.ChainSupport
-	rmnClient     rmn.Controller
-	rmnCrypto     cciptypes.RMNCrypto
-	rmnHomeReader reader.RMNHome
+	oracleID               commontypes.OracleID
+	oracleIDToP2pID        map[commontypes.OracleID]libocrtypes.PeerID
+	offchainCfg            pluginconfig.CommitOffchainConfig
+	destChain              cciptypes.ChainSelector
+	lggr                   logger.Logger
+	observer               Observer
+	ccipReader             readerpkg.CCIPReader
+	reportingCfg           ocr3types.ReportingPluginConfig
+	chainSupport           plugincommon.ChainSupport
+	rmnController          rmn.Controller
+	rmnControllerCfgDigest cciptypes.Bytes32
+	rmnCrypto              cciptypes.RMNCrypto
+	rmnHomeReader          readerpkg.RMNHome
 }
 
 // NewProcessor creates a new Processor
 func NewProcessor(
 	oracleID commontypes.OracleID,
+	oracleIDToP2pID map[commontypes.OracleID]libocrtypes.PeerID,
 	lggr logger.Logger,
 	offchainCfg pluginconfig.CommitOffchainConfig,
 	destChain cciptypes.ChainSelector,
@@ -43,9 +48,9 @@ func NewProcessor(
 	msgHasher cciptypes.MessageHasher,
 	reportingCfg ocr3types.ReportingPluginConfig,
 	chainSupport plugincommon.ChainSupport,
-	rmnClient rmn.Controller,
+	rmnController rmn.Controller,
 	rmnCrypto cciptypes.RMNCrypto,
-	rmnHomeReader reader.RMNHome,
+	rmnHomeReader readerpkg.RMNHome,
 ) *Processor {
 	observer := ObserverImpl{
 		lggr,
@@ -56,18 +61,27 @@ func NewProcessor(
 		msgHasher,
 	}
 	return &Processor{
-		oracleID:      oracleID,
-		offchainCfg:   offchainCfg,
-		destChain:     destChain,
-		lggr:          lggr,
-		observer:      observer,
-		ccipReader:    ccipReader,
-		reportingCfg:  reportingCfg,
-		chainSupport:  chainSupport,
-		rmnClient:     rmnClient,
-		rmnCrypto:     rmnCrypto,
-		rmnHomeReader: rmnHomeReader,
+		oracleID:        oracleID,
+		oracleIDToP2pID: oracleIDToP2pID,
+		offchainCfg:     offchainCfg,
+		destChain:       destChain,
+		lggr:            lggr,
+		observer:        observer,
+		ccipReader:      ccipReader,
+		reportingCfg:    reportingCfg,
+		chainSupport:    chainSupport,
+		rmnController:   rmnController,
+		rmnCrypto:       rmnCrypto,
+		rmnHomeReader:   rmnHomeReader,
 	}
 }
 
 var _ plugincommon.PluginProcessor[Query, Observation, Outcome] = &Processor{}
+
+func (p *Processor) Close() error {
+	if !p.offchainCfg.RMNEnabled {
+		return nil
+	}
+
+	return services.CloseAll(p.rmnController, p.rmnHomeReader)
+}

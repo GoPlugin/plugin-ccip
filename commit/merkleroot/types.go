@@ -3,12 +3,11 @@ package merkleroot
 import (
 	"sort"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 type Query struct {
@@ -132,8 +131,6 @@ type Outcome struct {
 	ReportTransmissionCheckAttempts uint                          `json:"reportTransmissionCheckAttempts"`
 	RMNReportSignatures             []cciptypes.RMNECDSASignature `json:"rmnReportSignatures"`
 	RMNRemoteCfg                    rmntypes.RemoteConfig         `json:"rmnRemoteCfg"`
-	// This is a bitmap where ith bit represents how the v value should be for ith signature
-	RMNRawVs cciptypes.BigInt `json:"rmnRawVs"`
 }
 
 // Sort all fields of the given Outcome

@@ -8,20 +8,18 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/goplugin/plugin-common/pkg/logger"
 
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 	common_mock "github.com/goplugin/plugin-ccip/mocks/internal_/plugincommon"
 	readermock "github.com/goplugin/plugin-ccip/mocks/internal_/reader"
+	readerpkg_mock "github.com/goplugin/plugin-ccip/mocks/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
-
-	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
-
-	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_Observation(t *testing.T) {
@@ -34,7 +32,7 @@ func Test_Observation(t *testing.T) {
 		cciptypes.NewTokenPrice(tokenA, bi100),
 		cciptypes.NewTokenPrice(tokenB, bi200),
 	}
-	feeQuoterTokenUpdates := map[types.Account]plugintypes.TimestampedBig{
+	feeQuoterTokenUpdates := map[cciptypes.UnknownEncodedAddress]plugintypes.TimestampedBig{
 		tokenA: plugintypes.NewTimestampedBig(bi100.Int64(), timestamp),
 		tokenB: plugintypes.NewTimestampedBig(bi200.Int64(), timestamp),
 	}
@@ -54,12 +52,12 @@ func Test_Observation(t *testing.T) {
 				)
 				chainSupport.EXPECT().SupportsDestChain(mock.Anything).Return(true, nil)
 
-				tokenPriceReader := readermock.NewMockPriceReader(t)
-				tokenPriceReader.EXPECT().GetTokenFeedPricesUSD(mock.Anything, []types.Account{tokenA, tokenB}).
+				tokenPriceReader := readerpkg_mock.NewMockPriceReader(t)
+				tokenPriceReader.EXPECT().GetFeedPricesUSD(mock.Anything, []cciptypes.UnknownEncodedAddress{tokenA, tokenB}).
 					Return([]*big.Int{bi100, bi200}, nil)
 
-				tokenPriceReader.EXPECT().GetFeeQuoterTokenUpdates(mock.Anything, mock.Anything).Return(
-					map[types.Account]plugintypes.TimestampedBig{
+				tokenPriceReader.EXPECT().GetFeeQuoterTokenUpdates(mock.Anything, mock.Anything, mock.Anything).Return(
+					map[cciptypes.UnknownEncodedAddress]plugintypes.TimestampedBig{
 						tokenA: plugintypes.NewTimestampedBig(bi100.Int64(), timestamp),
 						tokenB: plugintypes.NewTimestampedBig(bi200.Int64(), timestamp),
 					},
@@ -97,7 +95,7 @@ func Test_Observation(t *testing.T) {
 				homeChain.EXPECT().GetFChain().Return(nil, errors.New("failed to get FChain"))
 
 				chainSupport := common_mock.NewMockChainSupport(t)
-				tokenPriceReader := readermock.NewMockPriceReader(t)
+				tokenPriceReader := readerpkg_mock.NewMockPriceReader(t)
 
 				return &processor{
 					oracleID:         1,
@@ -135,7 +133,7 @@ func Test_Observation(t *testing.T) {
 }
 
 var defaultCfg = pluginconfig.CommitOffchainConfig{
-	TokenInfo: map[types.Account]pluginconfig.TokenInfo{
+	TokenInfo: map[cciptypes.UnknownEncodedAddress]pluginconfig.TokenInfo{
 		tokenA: {
 			Decimals:          18,
 			AggregatorAddress: "0x1111111111111111111111Ff18C45Df59775Fbb2",

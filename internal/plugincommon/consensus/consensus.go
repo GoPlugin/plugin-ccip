@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // GetConsensusMap takes a mapping from chains to a list of items,

@@ -5,17 +5,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/goplugin/plugin-libocr/commontypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/goplugin/plugin-libocr/commontypes"
 
 	commonconfig "github.com/goplugin/plugin-common/pkg/config"
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
 
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 )
 

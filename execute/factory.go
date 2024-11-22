@@ -13,15 +13,16 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/types/core"
 
+	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/execute/internal/gas"
 	"github.com/goplugin/plugin-ccip/execute/tokendata"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 	"github.com/goplugin/plugin-ccip/internal/reader"
 	"github.com/goplugin/plugin-ccip/pkg/contractreader"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 )
 
@@ -134,6 +135,14 @@ func (p PluginFactory) NewReportingPlugin(
 		return nil, ocr3types.ReportingPluginInfo{}, fmt.Errorf("failed to create token data observer: %w", err)
 	}
 
+	costlyMessageObserver := exectypes.NewCostlyMessageObserverWithDefaults(
+		p.lggr,
+		true,
+		ccipReader,
+		offchainConfig.RelativeBoostPerWaitHour,
+		p.estimateProvider,
+	)
+
 	return NewPlugin(
 			p.donID,
 			config,
@@ -147,6 +156,7 @@ func (p PluginFactory) NewReportingPlugin(
 			tokenDataObserver,
 			p.estimateProvider,
 			p.lggr,
+			costlyMessageObserver,
 		), ocr3types.ReportingPluginInfo{
 			Name: "CCIPRoleExecute",
 			Limits: ocr3types.ReportingPluginLimits{

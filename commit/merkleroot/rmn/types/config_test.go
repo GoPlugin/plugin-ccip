@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func TestRMNRemoteConfig_IsEmpty(t *testing.T) {
@@ -22,7 +22,7 @@ func TestRMNRemoteConfig_IsEmpty(t *testing.T) {
 		{
 			name: "Config with only ContractAddress",
 			config: RemoteConfig{
-				ContractAddress: cciptypes.Bytes{1, 2, 3},
+				ContractAddress: cciptypes.UnknownAddress{1, 2, 3},
 			},
 			expected: false,
 		},
@@ -41,9 +41,9 @@ func TestRMNRemoteConfig_IsEmpty(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "Config with only MinSigners",
+			name: "Config with only F",
 			config: RemoteConfig{
-				MinSigners: 1,
+				F: 1,
 			},
 			expected: false,
 		},
@@ -64,10 +64,10 @@ func TestRMNRemoteConfig_IsEmpty(t *testing.T) {
 		{
 			name: "Fully populated config",
 			config: RemoteConfig{
-				ContractAddress:  cciptypes.Bytes{1, 2, 3},
+				ContractAddress:  cciptypes.UnknownAddress{1, 2, 3},
 				ConfigDigest:     cciptypes.Bytes32{1},
 				Signers:          []RemoteSignerInfo{{}, {}},
-				MinSigners:       2,
+				F:                2,
 				ConfigVersion:    1,
 				RmnReportVersion: cciptypes.Bytes32{1},
 			},
@@ -79,7 +79,7 @@ func TestRMNRemoteConfig_IsEmpty(t *testing.T) {
 				ContractAddress:  nil,
 				ConfigDigest:     cciptypes.Bytes32{1},
 				Signers:          []RemoteSignerInfo{{}, {}},
-				MinSigners:       2,
+				F:                2,
 				ConfigVersion:    1,
 				RmnReportVersion: cciptypes.Bytes32{1},
 			},
@@ -88,10 +88,10 @@ func TestRMNRemoteConfig_IsEmpty(t *testing.T) {
 		{
 			name: "Config with empty (non-nil) ContractAddress",
 			config: RemoteConfig{
-				ContractAddress:  cciptypes.Bytes{},
+				ContractAddress:  cciptypes.UnknownAddress{},
 				ConfigDigest:     cciptypes.Bytes32{1},
 				Signers:          []RemoteSignerInfo{{}, {}},
-				MinSigners:       2,
+				F:                2,
 				ConfigVersion:    1,
 				RmnReportVersion: cciptypes.Bytes32{1},
 			},

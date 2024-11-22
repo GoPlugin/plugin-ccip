@@ -14,11 +14,11 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/chainconfig"
 	readermock "github.com/goplugin/plugin-ccip/mocks/pkg/contractreader"
 	"github.com/goplugin/plugin-ccip/pkg/consts"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 var (

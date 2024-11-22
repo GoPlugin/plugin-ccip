@@ -5,8 +5,13 @@ package rmn
 import (
 	context "context"
 
-	rmn "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
+	ccipocr3 "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
+
 	mock "github.com/stretchr/testify/mock"
+
+	ragep2ptypes "github.com/goplugin/plugin-libocr/ragep2p/types"
+
+	rmn "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
 
 	rmnpb "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/rmnpb"
 
@@ -24,6 +29,51 @@ type MockController_Expecter struct {
 
 func (_m *MockController) EXPECT() *MockController_Expecter {
 	return &MockController_Expecter{mock: &_m.Mock}
+}
+
+// Close provides a mock function with given fields:
+func (_m *MockController) Close() error {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Close")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockController_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type MockController_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+func (_e *MockController_Expecter) Close() *MockController_Close_Call {
+	return &MockController_Close_Call{Call: _e.mock.On("Close")}
+}
+
+func (_c *MockController_Close_Call) Run(run func()) *MockController_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockController_Close_Call) Return(_a0 error) *MockController_Close_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockController_Close_Call) RunAndReturn(run func() error) *MockController_Close_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // ComputeReportSignatures provides a mock function with given fields: ctx, destChain, requestedUpdates, rmnRemoteCfg
@@ -83,6 +133,56 @@ func (_c *MockController_ComputeReportSignatures_Call) Return(_a0 *rmn.ReportSig
 }
 
 func (_c *MockController_ComputeReportSignatures_Call) RunAndReturn(run func(context.Context, *rmnpb.LaneDest, []*rmnpb.FixedDestLaneUpdateRequest, types.RemoteConfig) (*rmn.ReportSignatures, error)) *MockController_ComputeReportSignatures_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// InitConnection provides a mock function with given fields: ctx, commitConfigDigest, rmnHomeConfigDigest, oraclePeerIDs, rmnNodes
+func (_m *MockController) InitConnection(ctx context.Context, commitConfigDigest ccipocr3.Bytes32, rmnHomeConfigDigest ccipocr3.Bytes32, oraclePeerIDs []ragep2ptypes.PeerID, rmnNodes []types.HomeNodeInfo) error {
+	ret := _m.Called(ctx, commitConfigDigest, rmnHomeConfigDigest, oraclePeerIDs, rmnNodes)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InitConnection")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, ccipocr3.Bytes32, ccipocr3.Bytes32, []ragep2ptypes.PeerID, []types.HomeNodeInfo) error); ok {
+		r0 = rf(ctx, commitConfigDigest, rmnHomeConfigDigest, oraclePeerIDs, rmnNodes)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockController_InitConnection_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InitConnection'
+type MockController_InitConnection_Call struct {
+	*mock.Call
+}
+
+// InitConnection is a helper method to define mock.On call
+//   - ctx context.Context
+//   - commitConfigDigest ccipocr3.Bytes32
+//   - rmnHomeConfigDigest ccipocr3.Bytes32
+//   - oraclePeerIDs []ragep2ptypes.PeerID
+//   - rmnNodes []types.HomeNodeInfo
+func (_e *MockController_Expecter) InitConnection(ctx interface{}, commitConfigDigest interface{}, rmnHomeConfigDigest interface{}, oraclePeerIDs interface{}, rmnNodes interface{}) *MockController_InitConnection_Call {
+	return &MockController_InitConnection_Call{Call: _e.mock.On("InitConnection", ctx, commitConfigDigest, rmnHomeConfigDigest, oraclePeerIDs, rmnNodes)}
+}
+
+func (_c *MockController_InitConnection_Call) Run(run func(ctx context.Context, commitConfigDigest ccipocr3.Bytes32, rmnHomeConfigDigest ccipocr3.Bytes32, oraclePeerIDs []ragep2ptypes.PeerID, rmnNodes []types.HomeNodeInfo)) *MockController_InitConnection_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(ccipocr3.Bytes32), args[2].(ccipocr3.Bytes32), args[3].([]ragep2ptypes.PeerID), args[4].([]types.HomeNodeInfo))
+	})
+	return _c
+}
+
+func (_c *MockController_InitConnection_Call) Return(_a0 error) *MockController_InitConnection_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockController_InitConnection_Call) RunAndReturn(run func(context.Context, ccipocr3.Bytes32, ccipocr3.Bytes32, []ragep2ptypes.PeerID, []types.HomeNodeInfo) error) *MockController_InitConnection_Call {
 	_c.Call.Return(run)
 	return _c
 }

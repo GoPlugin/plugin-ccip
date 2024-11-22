@@ -10,13 +10,12 @@ import (
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/execute/report"
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 	dt "github.com/goplugin/plugin-ccip/internal/plugincommon/discovery/discoverytypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // Outcome collects the reports from the two phases and constructs the final outcome. Part of the outcome is a fully

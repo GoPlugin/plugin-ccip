@@ -3,17 +3,20 @@ package chainfee
 import (
 	"context"
 
+	"github.com/goplugin/plugin-libocr/commontypes"
+
 	"github.com/goplugin/plugin-ccip/internal/reader"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 type processor struct {
+	oracleID     commontypes.OracleID
 	destChain    cciptypes.ChainSelector
 	lggr         logger.Logger
 	homeChain    reader.HomeChain
@@ -25,6 +28,7 @@ type processor struct {
 
 func NewProcessor(
 	lggr logger.Logger,
+	oracleID commontypes.OracleID,
 	destChain cciptypes.ChainSelector,
 	homeChain reader.HomeChain,
 	ccipReader readerpkg.CCIPReader,
@@ -34,6 +38,7 @@ func NewProcessor(
 ) plugincommon.PluginProcessor[Query, Observation, Outcome] {
 	return &processor{
 		lggr:         lggr,
+		oracleID:     oracleID,
 		destChain:    destChain,
 		homeChain:    homeChain,
 		ccipReader:   ccipReader,
@@ -48,3 +53,7 @@ func (p *processor) Query(ctx context.Context, prevOutcome Outcome) (Query, erro
 }
 
 var _ plugincommon.PluginProcessor[Query, Observation, Outcome] = &processor{}
+
+func (p *processor) Close() error {
+	return nil
+}

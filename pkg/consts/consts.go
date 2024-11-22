@@ -13,6 +13,7 @@ const (
 	ContractNameNonceManager           = "NonceManager"
 	ContractNameRMNHome                = "RMNHome"
 	ContractNameRMNRemote              = "RMNRemote"
+	ContractNameRMNProxy               = "RMNProxy"
 	ContractNameRouter                 = "Router"
 	ContractNameCCTPMessageTransmitter = "MessageTransmitter"
 )
@@ -24,22 +25,25 @@ const (
 	MethodNameRouterGetWrappedNative = "GetWrappedNative"
 
 	// OffRamp methods
-	MethodNameGetSourceChainConfig         = "GetSourceChainConfig"
-	MethodNameOffRampGetDynamicConfig      = "OffRampGetDynamicConfig"
-	MethodNameOffRampGetStaticConfig       = "OffRampGetStaticConfig"
-	MethodNameOffRampGetDestChainConfig    = "OffRampGetDestChainConfig"
-	MethodNameGetLatestPriceSequenceNumber = "GetLatestPriceSequenceNumber"
-	MethodNameIsBlessed                    = "IsBlessed"
-	MethodNameGetMerkleRoot                = "GetMerkleRoot"
-	MethodNameGetExecutionState            = "GetExecutionState"
+	MethodNameGetSourceChainConfig            = "GetSourceChainConfig"
+	MethodNameOffRampGetAllSourceChainConfigs = "OffRampGetAllSourceChainConfigs"
+	MethodNameOffRampGetDynamicConfig         = "OffRampGetDynamicConfig"
+	MethodNameOffRampGetStaticConfig          = "OffRampGetStaticConfig"
+	MethodNameOffRampGetDestChainConfig       = "OffRampGetDestChainConfig"
+	MethodNameGetLatestPriceSequenceNumber    = "GetLatestPriceSequenceNumber"
+	MethodNameIsBlessed                       = "IsBlessed"
+	MethodNameGetMerkleRoot                   = "GetMerkleRoot"
+	MethodNameGetExecutionState               = "GetExecutionState"
 
 	// OnRamp methods
 	MethodNameOnRampGetDynamicConfig        = "OnRampGetDynamicConfig"
 	MethodNameOnRampGetStaticConfig         = "OnRampGetStaticConfig"
+	MethodNameOnRampGetDestChainConfig      = "OnRampGetDestChainConfig"
 	MethodNameGetExpectedNextSequenceNumber = "GetExpectedNextSequenceNumber"
 
 	// FeeQuoter view/pure methods
 	MethodNameFeeQuoterGetTokenPrices       = "GetTokenPrices"
+	MethodNameFeeQuoterGetTokenPrice        = "GetTokenPrice"
 	MethodNameGetFeePriceUpdate             = "GetDestinationChainGasPrice"
 	MethodNameFeeQuoterGetStaticConfig      = "GetStaticConfig"
 	MethodNameGetDestChainConfig            = "GetDestChainConfig"
@@ -101,6 +105,9 @@ const (
 	// Used by the rmn remote reader.
 	MethodNameGetVersionedConfig    = "GetVersionedConfig"
 	MethodNameGetReportDigestHeader = "GetReportDigestHeader"
+
+	// RMNProxy.sol methods
+	MethodNameGetARM = "GetARM"
 )
 
 // Event Names

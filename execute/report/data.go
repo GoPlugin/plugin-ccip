@@ -3,9 +3,8 @@ package report
 import (
 	"sort"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // markNewMessagesExecuted compares an execute plugin report with the commit report metadata and marks the new messages

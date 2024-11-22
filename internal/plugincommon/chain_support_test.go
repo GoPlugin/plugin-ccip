@@ -5,15 +5,16 @@ import (
 	"testing"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/goplugin/plugin-libocr/commontypes"
-	"github.com/goplugin/plugin-libocr/ragep2p/types"
 	"github.com/stretchr/testify/require"
 
+	"github.com/goplugin/plugin-libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/ragep2p/types"
+
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	reader2 "github.com/goplugin/plugin-ccip/internal/reader"
 	"github.com/goplugin/plugin-ccip/mocks/internal_/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 const (

@@ -6,12 +6,11 @@ import (
 
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 
 	"golang.org/x/exp/maps"
 )
 
-// nolint:revive,govet
 func (p *processor) ValidateObservation(
 	prevOutcome Outcome,
 	query Query,
@@ -57,9 +56,9 @@ func (p *processor) ValidateObservation(
 }
 
 func validateFChain(fChain map[cciptypes.ChainSelector]int) error {
-	for _, f := range fChain {
-		if f < 0 {
-			return fmt.Errorf("fChain %d is negative", f)
+	for chainSelector, f := range fChain {
+		if f <= 0 {
+			return fmt.Errorf("fChain for chain %d is not positive: %d", chainSelector, f)
 		}
 	}
 	return nil

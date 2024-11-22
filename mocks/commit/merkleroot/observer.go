@@ -5,7 +5,7 @@ package merkleroot
 import (
 	context "context"
 
-	ccipocr3 "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	ccipocr3 "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 
 	mock "github.com/stretchr/testify/mock"
 

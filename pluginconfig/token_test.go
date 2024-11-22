@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
-	commonconfig "github.com/goplugin/plugin-common/pkg/config"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/stretchr/testify/require"
+
+	commonconfig "github.com/goplugin/plugin-common/pkg/config"
+
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func Test_TokenDataObserver_Unmarshall(t *testing.T) {

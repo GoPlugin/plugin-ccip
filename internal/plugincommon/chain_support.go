@@ -5,14 +5,15 @@ import (
 	"sort"
 
 	mapset "github.com/deckarep/golang-set/v2"
+
 	"github.com/goplugin/plugin-libocr/commontypes"
 	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
 	"github.com/goplugin/plugin-ccip/internal/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // ChainSupport contains functions that enable an oracle to determine which chains are accessible by itself and

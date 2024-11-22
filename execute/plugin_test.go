@@ -19,17 +19,17 @@ import (
 	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
 
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
 	dt "github.com/goplugin/plugin-ccip/internal/plugincommon/discovery/discoverytypes"
-	codec_mocks "github.com/goplugin/plugin-ccip/mocks/execute/internal_/gen"
 	reader_mock "github.com/goplugin/plugin-ccip/mocks/internal_/reader"
 	readerpkg_mock "github.com/goplugin/plugin-ccip/mocks/pkg/reader"
+	codec_mocks "github.com/goplugin/plugin-ccip/mocks/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	"github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	plugintypes2 "github.com/goplugin/plugin-ccip/plugintypes"
 )
 
@@ -302,7 +302,7 @@ func TestPlugin_Observation_EligibilityCheckFailure(t *testing.T) {
 
 	_, err := p.Observation(context.Background(), ocr3types.OutcomeContext{}, nil)
 	require.Error(t, err)
-	// nolint:lll // error message
+	//nolint:lll // error message
 	assert.Contains(t, err.Error(), "unable to determine if the destination chain is supported: error getting supported chains: oracle ID 0 not found in oracleIDToP2pID")
 }
 
@@ -498,7 +498,7 @@ func TestPlugin_ShouldTransmitAcceptReport_ElegibilityCheckFailure(t *testing.T)
 
 	_, err := p.ShouldTransmitAcceptedReport(context.Background(), 1, ocr3types.ReportWithInfo[[]byte]{})
 	require.Error(t, err)
-	// nolint:lll // error message
+	//nolint:lll // error message
 	assert.Contains(t, err.Error(), "unable to determine if the destination chain is supported: error getting supported chains: oracle ID 0 not found in oracleIDToP2pID")
 }
 

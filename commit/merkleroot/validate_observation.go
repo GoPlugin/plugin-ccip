@@ -9,11 +9,11 @@ import (
 	"github.com/goplugin/plugin-libocr/commontypes"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 	"github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func (w *Processor) ValidateObservation(

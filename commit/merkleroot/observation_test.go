@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/goplugin/plugin-libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/ragep2p/types"
+	ragep2ptypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
 
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
@@ -26,9 +27,11 @@ import (
 	"github.com/goplugin/plugin-ccip/internal/mocks"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 	"github.com/goplugin/plugin-ccip/mocks/commit/merkleroot"
+	rmn_mock "github.com/goplugin/plugin-ccip/mocks/commit/merkleroot/rmn"
 	common_mock "github.com/goplugin/plugin-ccip/mocks/internal_/plugincommon"
 	reader_mock "github.com/goplugin/plugin-ccip/mocks/pkg/reader"
 	readerpkg_mock "github.com/goplugin/plugin-ccip/mocks/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 )
 
@@ -150,6 +153,7 @@ func TestObservation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.setupMocks()
 
+			p.rmnControllerCfgDigest = tc.prevOutcome.RMNRemoteCfg.ConfigDigest // skip rmn controller setup
 			obs, err := p.Observation(ctx, tc.prevOutcome, tc.query)
 
 			if tc.expectedErr != "" {
@@ -590,6 +594,52 @@ func Test_computeMerkleRoot(t *testing.T) {
 	}
 }
 
+func Test_Processor_initializeRMNController(t *testing.T) {
+	ctx := tests.Context(t)
+
+	p := &Processor{
+		lggr:        logger.Test(t),
+		offchainCfg: pluginconfig.CommitOffchainConfig{RMNEnabled: false},
+	}
+
+	err := p.initializeRMNController(ctx, Outcome{})
+	assert.NoError(t, err, "rmn is not enabled")
+
+	p.offchainCfg.RMNEnabled = true
+	p.rmnControllerCfgDigest = cciptypes.Bytes32{1}
+	err = p.initializeRMNController(ctx, Outcome{})
+	assert.NoError(t, err, "rmn enabled but controller already initialized")
+
+	p.rmnControllerCfgDigest = cciptypes.Bytes32{1}
+	err = p.initializeRMNController(ctx, Outcome{})
+	assert.NoError(t, err, "previous outcome does not contain remote config digest")
+
+	rmnHomeReader := readerpkg_mock.NewMockRMNHome(t)
+	rmnController := rmn_mock.NewMockController(t)
+	p.rmnHomeReader = rmnHomeReader
+	p.rmnController = rmnController
+
+	cfg := testhelpers.CreateRMNRemoteCfg()
+	rmnNodes := []rmntypes.HomeNodeInfo{
+		{ID: 1, PeerID: types.PeerID{1, 2, 3}},
+		{ID: 10, PeerID: types.PeerID{1, 2, 31}},
+	}
+	oracleIDs := []ragep2ptypes.PeerID{}
+	rmnHomeReader.EXPECT().GetRMNNodesInfo(cfg.ConfigDigest).Return(rmnNodes, nil)
+
+	rmnController.EXPECT().InitConnection(
+		ctx,
+		cciptypes.Bytes32(p.reportingCfg.ConfigDigest),
+		cfg.ConfigDigest,
+		oracleIDs,
+		rmnNodes,
+	).Return(nil)
+
+	err = p.initializeRMNController(ctx, Outcome{RMNRemoteCfg: cfg})
+	assert.NoError(t, err, "rmn controller initialized")
+	assert.Equal(t, cfg.ConfigDigest, p.rmnControllerCfgDigest)
+}
+
 func mustNewMessageID(msgIDHex string) cciptypes.Bytes32 {
 	msgID, err := cciptypes.NewBytes32FromString(msgIDHex)
 	if err != nil {
@@ -617,6 +667,6 @@ func (a signatureVerifierAlwaysTrue) Verify(_ ed25519.PublicKey, _, _ []byte) bo
 }
 
 func (a signatureVerifierAlwaysTrue) VerifyReportSignatures(
-	_ context.Context, _ []cciptypes.RMNECDSASignature, _ cciptypes.RMNReport, _ []cciptypes.Bytes) error {
+	_ context.Context, _ []cciptypes.RMNECDSASignature, _ cciptypes.RMNReport, _ []cciptypes.UnknownAddress) error {
 	return nil
 }

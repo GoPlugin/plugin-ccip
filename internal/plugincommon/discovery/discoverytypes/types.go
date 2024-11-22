@@ -1,9 +1,8 @@
 package discoverytypes
 
 import (
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // Outcome isn't needed for this processor.

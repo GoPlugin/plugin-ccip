@@ -3,7 +3,7 @@
 package plugincommon
 
 import (
-	ccipocr3 "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	ccipocr3 "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	commontypes "github.com/goplugin/plugin-libocr/commontypes"
 
 	mapset "github.com/deckarep/golang-set/v2"

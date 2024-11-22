@@ -7,12 +7,12 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 
 	"github.com/goplugin/plugin-ccip/pkg/contractreader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	plugintypes2 "github.com/goplugin/plugin-ccip/plugintypes"
 )
 
@@ -23,7 +23,7 @@ var (
 
 // ContractAddresses is a map of contract names across all chain selectors and their address.
 // Currently only one contract per chain per name is supported.
-type ContractAddresses map[string]map[cciptypes.ChainSelector][]byte
+type ContractAddresses map[string]map[cciptypes.ChainSelector]cciptypes.UnknownAddress
 
 func (ca ContractAddresses) Append(contract string, chain cciptypes.ChainSelector, address []byte) ContractAddresses {
 	resp := ca
@@ -31,7 +31,7 @@ func (ca ContractAddresses) Append(contract string, chain cciptypes.ChainSelecto
 		resp = make(ContractAddresses)
 	}
 	if resp[contract] == nil {
-		resp[contract] = make(map[cciptypes.ChainSelector][]byte)
+		resp[contract] = make(map[cciptypes.ChainSelector]cciptypes.UnknownAddress)
 	}
 	resp[contract][chain] = address
 	return resp
@@ -122,7 +122,12 @@ type CCIPReader interface {
 	) (map[string]uint64, error)
 
 	// GetAvailableChainsFeeComponents Reads all fee components for known chains (chains that have chain writer defined)
-	GetAvailableChainsFeeComponents(ctx context.Context) map[cciptypes.ChainSelector]types.ChainFeeComponents
+	GetAvailableChainsFeeComponents(ctx context.Context,
+		chains []cciptypes.ChainSelector,
+	) map[cciptypes.ChainSelector]types.ChainFeeComponents
+
+	// GetDestChainFeeComponents Reads the fee components for the destination chain.
+	GetDestChainFeeComponents(ctx context.Context) (types.ChainFeeComponents, error)
 
 	// GetWrappedNativeTokenPriceUSD Gets the wrapped native token price in USD for the provided chains.
 	GetWrappedNativeTokenPriceUSD(
@@ -141,11 +146,8 @@ type CCIPReader interface {
 		destChainSelector cciptypes.ChainSelector,
 	) (rmntypes.RemoteConfig, error)
 
-	// DiscoverContracts reads the destination chain for contract addresses. They are returned per
-	// contract and source chain selector.
-	// allChains is needed because there is currently no way to discover all source contracts. So we allow them
-	// to be passed in here. We'll attempt to fetch the source config from the offramp for each of them.
-	DiscoverContracts(ctx context.Context, allChains []cciptypes.ChainSelector) (ContractAddresses, error)
+	// DiscoverContracts reads from all available contract readers to discover contract addresses.
+	DiscoverContracts(ctx context.Context) (ContractAddresses, error)
 
 	// LinkPriceUSD gets the PLI price in 1e-18 USDs from the FeeQuoter contract on the destination chain.
 	// For example, if the price is 1 PLI = 10 USD, this function will return 10e18 (10 * 1e18). You can think of this
@@ -156,4 +158,7 @@ type CCIPReader interface {
 	// Sync can be used to perform frequent syncing operations inside the reader implementation.
 	// Returns a bool indicating whether something was updated.
 	Sync(ctx context.Context, contracts ContractAddresses) error
+
+	// GetMedianDataAvailabilityGasConfig returns the median of the DataAvailabilityGasConfig values from all FeeQuoters
+	GetMedianDataAvailabilityGasConfig(ctx context.Context) (cciptypes.DataAvailabilityGasConfig, error)
 }

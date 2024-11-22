@@ -9,12 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
-
 	"github.com/goplugin/plugin-common/pkg/merklemulti"
 
 	commonconfig "github.com/goplugin/plugin-common/pkg/config"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // We use this default value when the config is not set for a specific chain.
@@ -35,7 +34,7 @@ type FeeInfo struct {
 
 type TokenInfo struct {
 	// AggregatorAddress is the address of the price feed TOKEN/USD aggregator on the feed chain.
-	AggregatorAddress string `json:"aggregatorAddress"`
+	AggregatorAddress cciptypes.UnknownEncodedAddress `json:"aggregatorAddress"`
 
 	// DeviationPPB is the deviation in parts per billion that the price feed is allowed to deviate
 	// from the last written price on-chain before we write a new price.
@@ -51,7 +50,7 @@ func (a TokenInfo) Validate() error {
 	}
 
 	// aggregator must be an ethereum address
-	decoded, err := hex.DecodeString(strings.ToLower(strings.TrimPrefix(a.AggregatorAddress, "0x")))
+	decoded, err := hex.DecodeString(strings.ToLower(strings.TrimPrefix(string(a.AggregatorAddress), "0x")))
 	if err != nil {
 		return fmt.Errorf("aggregatorAddress must be a valid ethereum address (i.e hex encoded 20 bytes): %w", err)
 	}
@@ -89,7 +88,7 @@ type CommitOffchainConfig struct {
 
 	// TokenInfo is a map of Arbitrum price sources for each token.
 	// Note that the token address is that on the remote chain.
-	TokenInfo map[types.Account]TokenInfo `json:"tokenInfo"`
+	TokenInfo map[cciptypes.UnknownEncodedAddress]TokenInfo `json:"tokenInfo"`
 
 	// PriceFeedChainSelector is the chain selector for the chain on which
 	// the token prices are read from.

@@ -3,9 +3,9 @@ package rmn
 import (
 	"fmt"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/rmnpb"
+
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // NewLaneUpdatesFromPB converts a slice of pb FixedDestLaneUpdate to a slice of RMNLaneUpdate

@@ -7,7 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // Test_fChainConsensus is a legacy test that was replaced by GetConsensusMap, now it's a regression test.

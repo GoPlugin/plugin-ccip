@@ -3,7 +3,7 @@ package slicelib
 import (
 	"sort"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // BigIntSortedMiddle returns the middle number after sorting the provided numbers.

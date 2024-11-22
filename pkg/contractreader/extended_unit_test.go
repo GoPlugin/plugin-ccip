@@ -4,8 +4,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/goplugin/plugin-common/pkg/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/goplugin/plugin-common/pkg/types"
 )
 
 func TestGetOneBinding(t *testing.T) {

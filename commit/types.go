@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/commit/chainfee"
 	"github.com/goplugin/plugin-ccip/commit/merkleroot"
 	"github.com/goplugin/plugin-ccip/commit/tokenprice"
 	dt "github.com/goplugin/plugin-ccip/internal/plugincommon/discovery/discoverytypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 type Query struct {

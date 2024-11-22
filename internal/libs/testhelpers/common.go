@@ -1,15 +1,13 @@
 package testhelpers
 
 import (
-	"github.com/goplugin/plugin-ccip/internal/reader"
-
-	"github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-libocr/commontypes"
 	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	"github.com/goplugin/plugin-ccip/internal/libs/testhelpers/rand"
+	"github.com/goplugin/plugin-ccip/internal/reader"
+	"github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func SetupConfigInfo(chainSelector ccipocr3.ChainSelector,
@@ -44,7 +42,7 @@ func CreateRMNRemoteCfg() rmntypes.RemoteConfig {
 				NodeIndex:        rand.RandomUint64(),
 			},
 		},
-		MinSigners:       rand.RandomUint64(),
+		F:                rand.RandomUint64(),
 		ConfigVersion:    rand.RandomUint32(),
 		RmnReportVersion: rand.RandomReportVersion(),
 	}

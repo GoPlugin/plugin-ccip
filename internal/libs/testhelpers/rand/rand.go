@@ -5,9 +5,7 @@ import (
 	"encoding/hex"
 	"math/big"
 
-	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
-
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func RandomBytes(n int) []byte {
@@ -44,6 +42,14 @@ func RandomUint64() uint64 {
 	return n.Uint64()
 }
 
+func RandomInt64() int64 {
+	n, err := rand.Int(rand.Reader, big.NewInt(1e18))
+	if err != nil {
+		panic(err)
+	}
+	return n.Int64()
+}
+
 func RandomPrefix() string {
 	b := make([]byte, 4)
 	_, err := rand.Read(b)
@@ -68,8 +74,8 @@ func stringToBytes32(s string) cciptypes.Bytes32 {
 	return result
 }
 
-func RandomAddress() types.Account {
+func RandomAddress() cciptypes.UnknownEncodedAddress {
 	b := make([]byte, 20)
 	_, _ = rand.Read(b) // Assignment for errcheck. Only used in tests so we can ignore.
-	return types.Account(cciptypes.Bytes(b).String())
+	return cciptypes.UnknownEncodedAddress(cciptypes.Bytes(b).String())
 }
