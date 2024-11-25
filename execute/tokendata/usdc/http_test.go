@@ -16,8 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
+
+	"github.com/goplugin/plugin-ccip/internal/mocks"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 const (
@@ -324,11 +326,7 @@ func Test_HTTPClient_CoolDownWithRetryHeader(t *testing.T) {
 }
 
 func Test_HTTPClient_RateLimiting_Parallel(t *testing.T) {
-	lggr := logger.Test(t)
-
-	t.Cleanup(func() {
-		_ = lggr.Sync()
-	})
+	lggr := mocks.NullLogger
 
 	testCases := []struct {
 		name         string

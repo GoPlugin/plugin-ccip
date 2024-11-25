@@ -5,7 +5,7 @@ import (
 	"errors"
 	"math/big"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // ChainConfig holds configuration that is stored in the onchain CCIPConfig.sol

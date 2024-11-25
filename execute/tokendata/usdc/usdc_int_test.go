@@ -10,16 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	sel "github.com/goplugin/chain-selectors"
 
 	commonconfig "github.com/goplugin/plugin-common/pkg/config"
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
-
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/execute/tokendata/usdc"
@@ -29,6 +28,7 @@ import (
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	"github.com/goplugin/plugin-ccip/pkg/contractreader"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 )
 
@@ -436,7 +436,7 @@ func Test_USDC_CCTP_Flow(t *testing.T) {
 }
 
 func createToken(t *testing.T, nonce uint64, sourceDomain uint32, pool string) cciptypes.RampTokenAmount {
-	bytesPool, err := cciptypes.NewBytesFromString(pool)
+	bytesPool, err := cciptypes.NewUnknownAddressFromHex(pool)
 	require.NoError(t, err)
 
 	return cciptypes.RampTokenAmount{

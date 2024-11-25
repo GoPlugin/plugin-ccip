@@ -7,9 +7,9 @@ import (
 	"github.com/goplugin/plugin-common/pkg/hashutil"
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/merklemulti"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // ConstructMerkleTree creates the merkle tree object from the messages in the report.

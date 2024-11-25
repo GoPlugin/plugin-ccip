@@ -4,7 +4,7 @@ import (
 	"github.com/goplugin/plugin-libocr/commontypes"
 	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 var (

@@ -6,7 +6,7 @@ import (
 
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 type PluginState string

@@ -20,7 +20,6 @@ import (
 	"github.com/goplugin/plugin-common/pkg/hashutil"
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/merklemulti"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
@@ -29,6 +28,9 @@ import (
 	"github.com/goplugin/plugin-ccip/internal/reader"
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
+
+	ragep2ptypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 )
 
 func (w *Processor) ObservationQuorum(
@@ -44,6 +46,10 @@ func (w *Processor) Observation(
 	prevOutcome Outcome,
 	q Query,
 ) (Observation, error) {
+	if err := w.initializeRMNController(ctx, prevOutcome); err != nil {
+		return Observation{}, fmt.Errorf("initialize RMN controller: %w", err)
+	}
+
 	if err := w.verifyQuery(ctx, prevOutcome, q); err != nil {
 		return Observation{}, fmt.Errorf("verify query: %w", err)
 	}
@@ -53,6 +59,54 @@ func (w *Processor) Observation(
 	w.lggr.Infow("Sending MerkleRootObs",
 		"observation", observation, "nextState", nextState, "observationDuration", time.Since(tStart))
 	return observation, nil
+}
+
+// initializeRMNController initializes the RMN controller iff:
+// 1. RMN is enabled.
+// 2. RMN controller is not already initialized with the same cfg digest.
+// 3. RMN remote config is available from previous outcome.
+func (w *Processor) initializeRMNController(ctx context.Context, prevOutcome Outcome) error {
+	if !w.offchainCfg.RMNEnabled {
+		return nil
+	}
+
+	if prevOutcome.RMNRemoteCfg.IsEmpty() {
+		w.lggr.Debug("RMN remote config is empty, skipping RMN controller initialization in this round")
+		return nil
+	}
+
+	if prevOutcome.RMNRemoteCfg.ConfigDigest == w.rmnControllerCfgDigest {
+		w.lggr.Debugw("RMN controller already initialized with the same config digest",
+			"configDigest", w.rmnControllerCfgDigest)
+		return nil
+	}
+
+	w.lggr.Infow("Initializing RMN controller", "rmnRemoteCfg", prevOutcome.RMNRemoteCfg)
+
+	rmnNodesInfo, err := w.rmnHomeReader.GetRMNNodesInfo(prevOutcome.RMNRemoteCfg.ConfigDigest)
+	if err != nil {
+		return fmt.Errorf("failed to get RMN nodes info: %w", err)
+	}
+
+	oraclePeerIDs := make([]ragep2ptypes.PeerID, 0, len(w.oracleIDToP2pID))
+	for _, p2pID := range w.oracleIDToP2pID {
+		w.lggr.Infow("Adding oracle node to peerIDs", "p2pID", p2pID.String())
+		oraclePeerIDs = append(oraclePeerIDs, p2pID)
+	}
+
+	if err := w.rmnController.InitConnection(
+		ctx,
+		cciptypes.Bytes32(w.reportingCfg.ConfigDigest),
+		prevOutcome.RMNRemoteCfg.ConfigDigest,
+		oraclePeerIDs,
+		rmnNodesInfo,
+	); err != nil {
+		return fmt.Errorf("failed to init connection to RMN: %w", err)
+	}
+
+	w.rmnControllerCfgDigest = prevOutcome.RMNRemoteCfg.ConfigDigest
+
+	return nil
 }
 
 // verifyQuery verifies the query based to the following rules.
@@ -93,7 +147,7 @@ func (w *Processor) verifyQuery(ctx context.Context, prevOutcome Outcome, q Quer
 		return fmt.Errorf("RMN remote config is not provided in the previous outcome")
 	}
 
-	signerAddresses := make([]cciptypes.Bytes, 0, len(sigs))
+	signerAddresses := make([]cciptypes.UnknownAddress, 0, len(sigs))
 	for _, rmnNode := range rmnRemoteCfg.Signers {
 		signerAddresses = append(signerAddresses, rmnNode.OnchainPublicKey)
 	}
@@ -104,7 +158,7 @@ func (w *Processor) verifyQuery(ctx context.Context, prevOutcome Outcome, q Quer
 	}
 
 	rmnReport := cciptypes.RMNReport{
-		ReportVersion:               rmnRemoteCfg.RmnReportVersion.String(),
+		ReportVersionDigest:         rmnRemoteCfg.RmnReportVersion,
 		DestChainID:                 cciptypes.NewBigIntFromInt64(int64(ch.EvmChainID)),
 		DestChainSelector:           cciptypes.ChainSelector(ch.Selector),
 		RmnRemoteContractAddress:    rmnRemoteCfg.ContractAddress,
@@ -314,6 +368,7 @@ func (o ObserverImpl) ObserveMerkleRoots(
 	rootsMu := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 	for _, chainRange := range ranges {
+		chainRange := chainRange
 		if supportedChains.Contains(chainRange.ChainSel) {
 			wg.Add(1)
 			go func() {
@@ -388,9 +443,12 @@ func (o ObserverImpl) computeMerkleRoot(ctx context.Context, msgs []cciptypes.Me
 		return [32]byte{}, fmt.Errorf("failed to construct merkle tree from %d leaves: %w", len(hashes), err)
 	}
 
+	hashesStr := make([]string, len(hashes))
+	for i, h := range hashes {
+		hashesStr[i] = cciptypes.Bytes32(h).String()
+	}
 	root := tree.Root()
-	o.lggr.Infow("computeMerkleRoot: Computed merkle root", "root", cciptypes.Bytes32(root).String())
-
+	o.lggr.Infow("Computed merkle root", "hashes", hashesStr, "root", cciptypes.Bytes32(root).String())
 	return root, nil
 }
 

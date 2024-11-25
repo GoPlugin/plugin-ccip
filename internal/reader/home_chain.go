@@ -13,19 +13,18 @@ import (
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/services"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/types/query/primitives"
 
 	"github.com/goplugin/plugin-ccip/chainconfig"
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	"github.com/goplugin/plugin-ccip/pkg/contractreader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 const (
 	defaultConfigPageSize = uint64(100)
 )
 
-//go:generate mockery --name HomeChain --output ./mocks/ --case underscore
 type HomeChain interface {
 	GetChainConfig(chainSelector cciptypes.ChainSelector) (ChainConfig, error)
 	GetAllChainConfigs() (map[cciptypes.ChainSelector]ChainConfig, error)

@@ -7,10 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/sha3"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon/consensus"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func Test_CommitReportValidator_ExecutePluginCommitData(t *testing.T) {

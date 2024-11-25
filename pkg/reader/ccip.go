@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -12,20 +13,19 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
-	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
-	"github.com/goplugin/plugin-ccip/internal/plugintypes"
-
-	ocr3types "github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
-
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/types/query"
 	"github.com/goplugin/plugin-common/pkg/types/query/primitives"
 
+	"github.com/goplugin/plugin-ccip/internal/plugincommon/consensus"
+
+	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	typeconv "github.com/goplugin/plugin-ccip/internal/libs/typeconv"
+	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	"github.com/goplugin/plugin-ccip/pkg/contractreader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	plugintypes2 "github.com/goplugin/plugin-ccip/plugintypes"
 )
 
@@ -99,7 +99,7 @@ func (r *ccipChainReader) CommitReportsGTETimestamp(
 	}
 
 	type TokenPriceUpdate struct {
-		SourceToken []byte
+		SourceToken cciptypes.UnknownAddress
 		UsdPerToken *big.Int
 	}
 
@@ -188,8 +188,9 @@ func (r *ccipChainReader) CommitReportsGTETimestamp(
 
 		for _, tokenPriceUpdate := range ev.PriceUpdates.TokenPriceUpdates {
 			priceUpdates.TokenPriceUpdates = append(priceUpdates.TokenPriceUpdates, cciptypes.TokenPrice{
-				TokenID: ocr3types.Account(typeconv.AddressBytesToString(tokenPriceUpdate.SourceToken, uint64(r.destChain))),
-				Price:   cciptypes.NewBigInt(tokenPriceUpdate.UsdPerToken),
+				TokenID: cciptypes.UnknownEncodedAddress(
+					typeconv.AddressBytesToString(tokenPriceUpdate.SourceToken, uint64(r.destChain))),
+				Price: cciptypes.NewBigInt(tokenPriceUpdate.UsdPerToken),
 			})
 		}
 
@@ -279,6 +280,56 @@ func (r *ccipChainReader) ExecutedMessageRanges(
 	return executed, nil
 }
 
+// Temporary struct to properly deserialize cciptypes.Message before we have support for cciptypes.BigInt
+type ccipMessageTokenAmount struct {
+	SourcePoolAddress cciptypes.UnknownAddress
+	DestTokenAddress  cciptypes.UnknownAddress
+	ExtraData         cciptypes.Bytes
+	Amount            *big.Int
+	DestExecData      cciptypes.Bytes
+}
+
+func (t *ccipMessageTokenAmount) ToOnRampToken() cciptypes.RampTokenAmount {
+	return cciptypes.RampTokenAmount{
+		SourcePoolAddress: t.SourcePoolAddress,
+		DestTokenAddress:  t.DestTokenAddress,
+		ExtraData:         t.ExtraData,
+		Amount:            cciptypes.NewBigInt(t.Amount),
+		DestExecData:      t.DestExecData,
+	}
+}
+
+type ccipMessage struct {
+	Header         cciptypes.RampMessageHeader
+	Sender         cciptypes.UnknownAddress
+	Data           cciptypes.Bytes
+	Receiver       cciptypes.UnknownAddress
+	ExtraArgs      cciptypes.Bytes
+	FeeToken       cciptypes.UnknownAddress
+	FeeTokenAmount *big.Int
+	FeeValueJuels  *big.Int
+	TokenAmounts   []ccipMessageTokenAmount
+}
+
+func (m *ccipMessage) ToMessage() cciptypes.Message {
+	tk := make([]cciptypes.RampTokenAmount, len(m.TokenAmounts))
+	for i := range m.TokenAmounts {
+		tk[i] = m.TokenAmounts[i].ToOnRampToken()
+	}
+
+	return cciptypes.Message{
+		Header:         m.Header,
+		Sender:         m.Sender,
+		Data:           m.Data,
+		Receiver:       m.Receiver,
+		ExtraArgs:      m.ExtraArgs,
+		FeeToken:       m.FeeToken,
+		FeeTokenAmount: cciptypes.NewBigInt(m.FeeTokenAmount),
+		FeeValueJuels:  cciptypes.NewBigInt(m.FeeValueJuels),
+		TokenAmounts:   tk,
+	}
+}
+
 func (r *ccipChainReader) MsgsBetweenSeqNums(
 	ctx context.Context, sourceChainSelector cciptypes.ChainSelector, seqNumRange cciptypes.SeqNumRange,
 ) ([]cciptypes.Message, error) {
@@ -293,7 +344,7 @@ func (r *ccipChainReader) MsgsBetweenSeqNums(
 
 	type SendRequestedEvent struct {
 		DestChainSelector cciptypes.ChainSelector
-		Message           cciptypes.Message
+		Message           ccipMessage
 	}
 
 	seq, err := r.contractReaders[sourceChainSelector].ExtendedQueryKey(
@@ -338,7 +389,7 @@ func (r *ccipChainReader) MsgsBetweenSeqNums(
 		msg.Message.Header.OnRamp = onRampAddress
 
 		if valid {
-			msgs = append(msgs, msg.Message)
+			msgs = append(msgs, msg.Message.ToMessage())
 		}
 	}
 
@@ -451,14 +502,20 @@ func (r *ccipChainReader) Nonces(
 	return res, nil
 }
 
-func (r *ccipChainReader) GetAvailableChainsFeeComponents(
-	ctx context.Context,
+func (r *ccipChainReader) GetAvailableChainsFeeComponents(ctx context.Context,
+	chains []cciptypes.ChainSelector,
 ) map[cciptypes.ChainSelector]types.ChainFeeComponents {
 	feeComponents := make(map[cciptypes.ChainSelector]types.ChainFeeComponents, len(r.contractWriters))
-	for chain, chainWriter := range r.contractWriters {
+
+	for _, chain := range chains {
+		chainWriter, ok := r.contractWriters[chain]
+		if !ok {
+			r.lggr.Warnw("contract writer not found", "chain", chain)
+			continue
+		}
 		feeComponent, err := chainWriter.GetFeeComponents(ctx)
 		if err != nil {
-			r.lggr.Errorw("failed to get chain fee components for chain %d: %w", chain, err)
+			r.lggr.Errorw("failed to get chain fee components", "chain", chain, "err", err)
 			continue
 		}
 		feeComponents[chain] = *feeComponent
@@ -466,13 +523,32 @@ func (r *ccipChainReader) GetAvailableChainsFeeComponents(
 	return feeComponents
 }
 
+func (r *ccipChainReader) GetDestChainFeeComponents(
+	ctx context.Context,
+) (types.ChainFeeComponents, error) {
+	chainWriter, ok := r.contractWriters[r.destChain]
+	if !ok {
+		r.lggr.Errorw("dest chain contract writer not found", "chain", r.destChain)
+		return types.ChainFeeComponents{}, errors.New("dest chain contract writer not found")
+	}
+
+	feeComponents, err := chainWriter.GetFeeComponents(ctx)
+	if err != nil {
+		r.lggr.Errorw("failed to get dest chain fee components", "chain", r.destChain)
+		return types.ChainFeeComponents{}, err
+	}
+
+	return *feeComponents, nil
+}
+
 func (r *ccipChainReader) GetWrappedNativeTokenPriceUSD(
 	ctx context.Context,
 	selectors []cciptypes.ChainSelector,
 ) map[cciptypes.ChainSelector]cciptypes.BigInt {
 	// 1. Call chain's router to get native token address https://github.com/goplugin/pluginv3.0/blob/60e8b1181dd74b66903cf5b9a8427557b85357ec/contracts/src/v0.8/ccip/Router.sol#L189:L191
-	// nolint:lll
 	// 2. Call chain's FeeQuoter to get native tokens price  https://github.com/goplugin/pluginv3.0/blob/60e8b1181dd74b66903cf5b9a8427557b85357ec/contracts/src/v0.8/ccip/FeeQuoter.sol#L229-L229
+	//
+	//nolint:lll
 	prices := make(map[cciptypes.ChainSelector]cciptypes.BigInt)
 	for _, chain := range selectors {
 		reader, ok := r.contractReaders[chain]
@@ -482,7 +558,7 @@ func (r *ccipChainReader) GetWrappedNativeTokenPriceUSD(
 		}
 
 		//TODO: Use batching in the future
-		var nativeTokenAddress ocr3types.Account
+		var nativeTokenAddress cciptypes.Bytes
 		err := reader.ExtendedGetLatestValue(
 			ctx,
 			consts.ContractNameRouter,
@@ -496,44 +572,45 @@ func (r *ccipChainReader) GetWrappedNativeTokenPriceUSD(
 			continue
 		}
 
-		if nativeTokenAddress == "" {
+		if nativeTokenAddress.String() == "0x" {
 			r.lggr.Errorw("native token address is empty", "chain", chain)
 			continue
 		}
 
-		var price *big.Int
+		var update *plugintypes.TimestampedUnixBig
 		err = reader.ExtendedGetLatestValue(
 			ctx,
 			consts.ContractNameFeeQuoter,
-			consts.MethodNameFeeQuoterGetTokenPrices,
+			consts.MethodNameFeeQuoterGetTokenPrice,
 			primitives.Unconfirmed,
 			map[string]any{
 				"token": nativeTokenAddress,
 			},
-			&price,
+			&update,
 		)
 		if err != nil {
 			r.lggr.Errorw("failed to get native token price", "chain", chain, "err", err)
 			continue
 		}
 
-		if price == nil {
-			r.lggr.Errorw("native token price is nil", "chain", chain)
+		if update == nil || update.Timestamp == 0 {
+			r.lggr.Warnw("no native token price available", "chain", chain)
 			continue
 		}
-		prices[chain] = cciptypes.NewBigInt(price)
+		prices[chain] = cciptypes.NewBigInt(update.Value)
 	}
 	return prices
 }
 
 // GetChainFeePriceUpdate Read from Destination chain FeeQuoter latest fee updates for the provided chains.
 // It unpacks the packed fee into the ChainFeeUSDPrices struct.
-// nolint:lll
 // https://github.com/goplugin/pluginv3.0/blob/60e8b1181dd74b66903cf5b9a8427557b85357ec/contracts/src/v0.8/ccip/FeeQuoter.sol#L263-L263
+//
+//nolint:lll
 func (r *ccipChainReader) GetChainFeePriceUpdate(ctx context.Context, selectors []cciptypes.ChainSelector) map[cciptypes.ChainSelector]plugintypes.TimestampedBig {
 	feeUpdates := make(map[cciptypes.ChainSelector]plugintypes.TimestampedBig, len(selectors))
 	for _, chain := range selectors {
-		update := plugintypes.TimestampedBig{}
+		update := plugintypes.TimestampedUnixBig{}
 		// Read from dest chain
 		err := r.contractReaders[r.destChain].ExtendedGetLatestValue(
 			ctx,
@@ -550,11 +627,11 @@ func (r *ccipChainReader) GetChainFeePriceUpdate(ctx context.Context, selectors 
 			r.lggr.Warnw("failed to get chain fee price update", "chain", chain, "err", err)
 			continue
 		}
-		feeUpdates[chain] = update
-		//feeUpdates[chain] = chainfee.ChainFeeUpdate{
-		//	Timestamp: update.Timestamp,
-		//	ChainFee:  chainfee.FromPackedFee(update.Value.Int),
-		//}
+		if update.Timestamp == 0 || update.Value == nil || update.Value.Cmp(big.NewInt(0)) == 0 {
+			r.lggr.Debugw("chain fee price update is empty", "chain", chain)
+			continue
+		}
+		feeUpdates[chain] = plugintypes.TimeStampedBigFromUnix(update)
 	}
 
 	return feeUpdates
@@ -568,10 +645,18 @@ func (r *ccipChainReader) GetRMNRemoteConfig(
 		return rmntypes.RemoteConfig{}, err
 	}
 
-	contractAddress, err := r.GetContractAddress(consts.ContractNameRMNRemote, destChainSelector)
+	// RMNRemote address stored in the offramp static config is actually the proxy contract address.
+	// Here we will get the RMNRemote address from the proxy contract by calling the RMNProxy contract.
+	proxyContractAddress, err := r.GetContractAddress(consts.ContractNameRMNRemote, destChainSelector)
 	if err != nil {
-		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote contract address: %w", err)
+		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote proxy contract address: %w", err)
 	}
+
+	rmnRemoteAddress, err := r.getRMNRemoteAddress(ctx, destChainSelector, proxyContractAddress)
+	if err != nil {
+		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote address: %w", err)
+	}
+	r.lggr.Debugw("got RMNRemote address", "address", rmnRemoteAddress)
 
 	// TODO: make the calls in parallel using errgroup
 	var vc versionedConfig
@@ -587,18 +672,23 @@ func (r *ccipChainReader) GetRMNRemoteConfig(
 		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote config: %w", err)
 	}
 
-	var dh cciptypes.Bytes32
+	type ret struct {
+		DigestHeader cciptypes.Bytes32
+	}
+	var header ret
+
 	err = r.contractReaders[destChainSelector].ExtendedGetLatestValue(
 		ctx,
 		consts.ContractNameRMNRemote,
 		consts.MethodNameGetReportDigestHeader,
 		primitives.Unconfirmed,
 		map[string]any{},
-		&dh,
+		&header,
 	)
 	if err != nil {
 		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote report digest header: %w", err)
 	}
+	r.lggr.Infow("got RMNRemote report digest header", "digest", header.DigestHeader)
 
 	signers := make([]rmntypes.RemoteSignerInfo, 0, len(vc.Config.Signers))
 	for _, signer := range vc.Config.Signers {
@@ -609,21 +699,22 @@ func (r *ccipChainReader) GetRMNRemoteConfig(
 	}
 
 	return rmntypes.RemoteConfig{
-		ContractAddress:  contractAddress,
+		ContractAddress:  rmnRemoteAddress,
 		ConfigDigest:     cciptypes.Bytes32(vc.Config.RMNHomeContractConfigDigest),
 		Signers:          signers,
-		MinSigners:       vc.Config.MinSigners,
+		F:                vc.Config.F,
 		ConfigVersion:    vc.Version,
-		RmnReportVersion: dh,
+		RmnReportVersion: header.DigestHeader,
 	}, nil
 }
 
-func (r *ccipChainReader) discoverDestinationContracts(
+// discoverOffRampContracts uses the offRamp for a given chain to discover the addresses of other contracts.
+func (r *ccipChainReader) discoverOffRampContracts(
 	ctx context.Context,
-	allChains []cciptypes.ChainSelector,
+	chain cciptypes.ChainSelector,
 ) (ContractAddresses, error) {
 	// Exit without an error if we cannot read the destination.
-	if err := validateExtendedReaderExistence(r.contractReaders, r.destChain); err != nil {
+	if err := validateExtendedReaderExistence(r.contractReaders, chain); err != nil {
 		return nil, fmt.Errorf("validate extended reader existence: %w", err)
 	}
 
@@ -631,82 +722,71 @@ func (r *ccipChainReader) discoverDestinationContracts(
 	var resp ContractAddresses
 
 	// OnRamps are in the offRamp SourceChainConfig.
-	sourceConfigs, err := r.getOffRampSourceChainsConfig(ctx, allChains)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get SourceChainsConfig: %w", err)
-	}
-	for chain, cfg := range sourceConfigs {
-		resp = resp.Append(consts.ContractNameOnRamp, chain, cfg.OnRamp)
+	{
+		sourceConfigs, err := r.getAllOffRampSourceChainsConfig(ctx, chain)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get SourceChainsConfig: %w", err)
+		}
+
+		// Iterate results in sourceChain selector order so that the router config is deterministic.
+		keys := maps.Keys(sourceConfigs)
+		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		for _, sourceChain := range keys {
+			cfg := sourceConfigs[sourceChain]
+			resp = resp.Append(consts.ContractNameOnRamp, sourceChain, cfg.OnRamp)
+			// The local router is located in each source sourceChain config. Add it once.
+			if len(resp[consts.ContractNameRouter][chain]) == 0 {
+				resp = resp.Append(consts.ContractNameRouter, chain, cfg.Router)
+			}
+		}
 	}
 
 	// NonceManager and RMNRemote are in the offramp static config.
-	var staticConfig offRampStaticChainConfig
-	err = r.getDestinationData(
-		ctx,
-		r.destChain,
-		consts.ContractNameOffRamp,
-		consts.MethodNameOfframpGetStaticConfig, //nolint:staticcheck // TODO: use the new name.
-		&staticConfig,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("unable to lookup nonce manager (offramp static config): %w", err)
-	}
-	resp = resp.Append(consts.ContractNameNonceManager, r.destChain, staticConfig.NonceManager)
-	resp = resp.Append(consts.ContractNameRMNRemote, r.destChain, staticConfig.Rmn)
-
-	// FeeQuoter from the offRamp dynamic config.
-	var dynamicConfig offRampDynamicChainConfig
-	err = r.getDestinationData(
-		ctx,
-		r.destChain,
-		consts.ContractNameOffRamp,
-		consts.MethodNameOfframpGetDynamicConfig, //nolint:staticcheck // TODO: use the new name.
-		&dynamicConfig,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("unable to lookup fee quoter (offramp dynamic config): %w", err)
-	}
-	resp = resp.Append(consts.ContractNameFeeQuoter, r.destChain, dynamicConfig.FeeQuoter)
-
-	// TODO: re-enable router discovery once the chainreader has been configured with
-	/*
-		// Router is in the offRamp chain config.
-		var chainConfig offRampDestChainConfig
-		err = r.getDestinationData(
+	{
+		var staticConfig offRampStaticChainConfig
+		err := r.getDestinationData(
 			ctx,
-			r.destChain,
+			chain,
 			consts.ContractNameOffRamp,
-			consts.MethodNameOffRampGetDestChainConfig,
-			&chainConfig,
+			consts.MethodNameOffRampGetStaticConfig,
+			&staticConfig,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("unable to lookup router (offramp dest chain config): %w", err)
+			return nil, fmt.Errorf("unable to lookup nonce manager and rmn proxy remote (offramp static config): %w", err)
 		}
-		resp = resp.Append(consts.ContractNameRouter, r.destChain, chainConfig.Router)
-	*/
+		resp = resp.Append(consts.ContractNameNonceManager, chain, staticConfig.NonceManager)
+		resp = resp.Append(consts.ContractNameRMNRemote, chain, staticConfig.RmnRemote)
+		r.lggr.Infow("appending RMN remote contract address", "address", staticConfig.RmnRemote)
+	}
+
+	// FeeQuoter from the offRamp dynamic config.
+	{
+		var dynamicConfig offRampDynamicChainConfig
+		err := r.getDestinationData(
+			ctx,
+			chain,
+			consts.ContractNameOffRamp,
+			consts.MethodNameOffRampGetDynamicConfig,
+			&dynamicConfig,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("unable to lookup fee quoter (offramp dynamic config): %w", err)
+		}
+		resp = resp.Append(consts.ContractNameFeeQuoter, chain, dynamicConfig.FeeQuoter)
+	}
 
 	return resp, nil
 }
 
-func (r *ccipChainReader) DiscoverContracts(
-	ctx context.Context,
-	allChains []cciptypes.ChainSelector,
-) (ContractAddresses, error) {
-	// TODO: Remove nil handling once the discovery processor is able to discover source chain addresses.
-	// At that point it will pass in the destChain on the first round, and in subsequent rounds it will pass in
-	// the full list of observed sources.
-	if allChains == nil {
-		allChains = maps.Keys(r.contractReaders)
-	}
-	resp, err := r.discoverDestinationContracts(ctx, allChains)
-	// Ignore the error if the destination chain is not available. We still want to continue
-	// discovering contracts from any source chains that may be available.
-	if err != nil {
-		if !errors.Is(err, ErrContractReaderNotFound) {
+func (r *ccipChainReader) DiscoverContracts(ctx context.Context) (ContractAddresses, error) {
+	var resp ContractAddresses
+
+	// Discover destination contracts if the dest chain is supported.
+	if err := validateExtendedReaderExistence(r.contractReaders, r.destChain); err == nil {
+		resp, err = r.discoverOffRampContracts(ctx, r.destChain)
+		if err != nil {
 			return nil, fmt.Errorf("discover destination contracts: %w", err)
 		}
-		// Make sure
-		resp = nil
 	}
 
 	// The following calls are on dynamically configured chains which may not
@@ -717,17 +797,32 @@ func (r *ccipChainReader) DiscoverContracts(
 	myChains := maps.Keys(r.contractReaders)
 
 	// Read onRamps for FeeQuoter in DynamicConfig.
-	dynamicConfigs, err := r.getOnRampDynamicConfigs(ctx, myChains)
-	if err != nil {
-		r.lggr.Infow("unable to lookup source fee quoters, this is expected during initialization", "err", err)
-
-		// ErrNoBindings is an allowable error.
-		if !errors.Is(err, contractreader.ErrNoBindings) {
+	{
+		dynamicConfigs, err := r.getOnRampDynamicConfigs(ctx, myChains)
+		if errors.Is(err, contractreader.ErrNoBindings) {
+			// ErrNoBindings is an allowable error.
+			r.lggr.Infow("unable to lookup source fee quoters, this is expected during initialization", "err", err)
+		} else if err != nil {
 			return nil, fmt.Errorf("unable to lookup source fee quoters (onRamp dynamic config): %w", err)
+		} else {
+			for chain, cfg := range dynamicConfigs {
+				resp = resp.Append(consts.ContractNameFeeQuoter, chain, cfg.DynamicConfig.FeeQuoter)
+			}
 		}
-	} else {
-		for chain, cfg := range dynamicConfigs {
-			resp = resp.Append(consts.ContractNameFeeQuoter, chain, cfg.FeeQuoter)
+	}
+
+	// Read onRamps for Router in DestChainConfig.
+	{
+		destChainConfig, err := r.getOnRampDestChainConfig(ctx, myChains)
+		if errors.Is(err, contractreader.ErrNoBindings) {
+			// ErrNoBindings is an allowable error.
+			r.lggr.Infow("unable to lookup source routers, this is expected during initialization", "err", err)
+		} else if err != nil {
+			return nil, fmt.Errorf("unable to lookup source routers (onRamp dest chain config): %w", err)
+		} else {
+			for chain, cfg := range destChainConfig {
+				resp = resp.Append(consts.ContractNameRouter, chain, cfg.Router)
+			}
 		}
 	}
 
@@ -750,7 +845,7 @@ func (r *ccipChainReader) Sync(ctx context.Context, contracts ContractAddresses)
 			}
 
 			// try to bind
-			_, err := bindExtendedReaderContract(ctx, r.contractReaders, chainSel, contractName, address)
+			_, err := bindExtendedReaderContract(ctx, r.lggr, r.contractReaders, chainSel, contractName, address)
 			if err != nil {
 				if errors.Is(err, ErrContractReaderNotFound) {
 					// don't support this chain
@@ -806,7 +901,25 @@ func (r *ccipChainReader) LinkPriceUSD(ctx context.Context) (cciptypes.BigInt, e
 		return cciptypes.BigInt{}, fmt.Errorf("get PLI price in USD: %w", err)
 	}
 
+	if linkPriceUSD.Int == nil {
+		return cciptypes.BigInt{}, fmt.Errorf("PLI price is nil")
+	}
+
+	if linkPriceUSD.Int.Cmp(big.NewInt(0)) == 0 {
+		return cciptypes.BigInt{}, fmt.Errorf("PLI price is 0")
+	}
+
 	return linkPriceUSD, nil
+}
+
+// feeQuoterStaticConfig is used to parse the response from the feeQuoter contract's getStaticConfig method.
+// See: https://github.com/goplugin/ccip/blob/a3f61f7458e4499c2c62eb38581c60b4942b1160/contracts/src/v0.8/ccip/FeeQuoter.sol#L946
+//
+//nolint:lll // It's a URL.
+type feeQuoterStaticConfig struct {
+	MaxFeeJuelsPerMsg  cciptypes.BigInt `json:"maxFeeJuelsPerMsg"`
+	LinkToken          []byte           `json:"linkToken"`
+	StalenessThreshold uint32           `json:"stalenessThreshold"`
 }
 
 // getDestFeeQuoterStaticConfig returns the destination chain's Fee Quoter's StaticConfig
@@ -839,27 +952,29 @@ func (r *ccipChainReader) getFeeQuoterTokenPriceUSD(ctx context.Context, tokenAd
 		return cciptypes.BigInt{}, fmt.Errorf("contract reader not found for chain %d", r.destChain)
 	}
 
-	var price big.Int
+	var timestampedPrice plugintypes.TimestampedUnixBig
 	err := reader.ExtendedGetLatestValue(
 		ctx,
 		consts.ContractNameFeeQuoter,
-		consts.MethodNameFeeQuoterGetTokenPrices,
+		consts.MethodNameFeeQuoterGetTokenPrice,
 		primitives.Unconfirmed,
 		map[string]any{
 			"token": tokenAddr,
 		},
-		&price,
+		&timestampedPrice,
 	)
 
 	if err != nil {
 		return cciptypes.BigInt{}, fmt.Errorf("failed to get PLI token price, addr: %v, err: %w", tokenAddr, err)
 	}
 
+	price := timestampedPrice.Value
+
 	if price.Cmp(big.NewInt(0)) == 0 {
 		return cciptypes.BigInt{}, fmt.Errorf("PLI token price is 0, addr: %v", tokenAddr)
 	}
 
-	return cciptypes.NewBigInt(&price), nil
+	return cciptypes.NewBigInt(price), nil
 }
 
 // sourceChainConfig is used to parse the response from the offRamp contract's getSourceChainConfig method.
@@ -867,9 +982,22 @@ func (r *ccipChainReader) getFeeQuoterTokenPriceUSD(ctx context.Context, tokenAd
 //
 //nolint:lll // It's a URL.
 type sourceChainConfig struct {
+	Router    []byte // local router
 	IsEnabled bool
 	OnRamp    []byte
 	MinSeqNr  uint64
+}
+
+func (scc sourceChainConfig) check() (bool /* enabled */, error) {
+	// This may happen due to some sort of regression in the codec that unmarshals
+	// chain data -> go struct.
+	if len(scc.OnRamp) == 0 {
+		return false, fmt.Errorf(
+			"onRamp misconfigured/didn't unmarshal: %x",
+			scc.OnRamp,
+		)
+	}
+	return scc.IsEnabled, nil
 }
 
 // getOffRampSourceChainsConfig returns the offRamp contract's source chain configurations for each supported source
@@ -907,17 +1035,11 @@ func (r *ccipChainReader) getOffRampSourceChainsConfig(
 				return fmt.Errorf("failed to get source chain config: %w", err)
 			}
 
-			// This may happen due to some sort of regression in the codec that unmarshals
-			// chain data -> go struct.
-			if len(resp.OnRamp) == 0 {
-				return fmt.Errorf(
-					"onRamp misconfigured/didn't unmarshal for chain %d: %x",
-					chainSel,
-					resp.OnRamp,
-				)
+			enabled, err := resp.check()
+			if err != nil {
+				return fmt.Errorf("source chain config check for chain %d failed: %w", chainSel, err)
 			}
-
-			if !resp.IsEnabled {
+			if !enabled {
 				// We don't want to process disabled chains prematurely.
 				r.lggr.Debugw("source chain is disabled", "chain", chainSel)
 				return nil
@@ -936,24 +1058,81 @@ func (r *ccipChainReader) getOffRampSourceChainsConfig(
 	return res, nil
 }
 
+// selectorsAndConfigs wraps the return values from getAllSourceChainConfigs.
+type selectorsAndConfigs struct {
+	Selectors          []uint64            `mapstructure:"F0"`
+	SourceChainConfigs []sourceChainConfig `mapstructure:"F1"`
+}
+
+// getAllOffRampSourceChainsConfig get all enabled source chain configs from the offRamp for the provided chain.
+func (r *ccipChainReader) getAllOffRampSourceChainsConfig(
+	ctx context.Context,
+	chain cciptypes.ChainSelector,
+) (map[cciptypes.ChainSelector]sourceChainConfig, error) {
+	if err := validateExtendedReaderExistence(r.contractReaders, chain); err != nil {
+		return nil, fmt.Errorf("validate extended reader existence: %w", err)
+	}
+
+	configs := make(map[cciptypes.ChainSelector]sourceChainConfig)
+
+	var resp selectorsAndConfigs
+	//var resp map[string]any
+	err := r.contractReaders[chain].ExtendedGetLatestValue(
+		ctx,
+		consts.ContractNameOffRamp,
+		consts.MethodNameOffRampGetAllSourceChainConfigs,
+		primitives.Unconfirmed,
+		map[string]any{},
+		&resp,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source chain configs: %w", err)
+	}
+
+	if len(resp.SourceChainConfigs) != len(resp.Selectors) {
+		return nil, fmt.Errorf("selectors and source chain configs length mismatch: %v", resp)
+	}
+
+	r.lggr.Debugw("got source chain configs", "configs", resp)
+
+	// Populate the map.
+	for i := range resp.Selectors {
+		chainSel := cciptypes.ChainSelector(resp.Selectors[i])
+		cfg := resp.SourceChainConfigs[i]
+
+		enabled, err := cfg.check()
+		if err != nil {
+			return nil, fmt.Errorf("source chain config check for chain %d failed: %w", chainSel, err)
+		}
+		if !enabled {
+			// We don't want to process disabled chains prematurely.
+			r.lggr.Debugw("source chain is disabled", "chain", chainSel)
+			continue
+		}
+
+		configs[chainSel] = cfg
+	}
+
+	return configs, nil
+}
+
 // offRampStaticChainConfig is used to parse the response from the offRamp contract's getStaticConfig method.
 // See: https://github.com/goplugin/ccip/blob/a3f61f7458e4499c2c62eb38581c60b4942b1160/contracts/src/v0.8/ccip/offRamp/OffRamp.sol#L86
 //
 //nolint:lll // It's a URL.
 type offRampStaticChainConfig struct {
 	ChainSelector      cciptypes.ChainSelector `json:"chainSelector"`
-	Rmn                []byte                  `json:"rmn"`
+	RmnRemote          []byte                  `json:"rmnRemote"`
 	TokenAdminRegistry []byte                  `json:"tokenAdminRegistry"`
 	NonceManager       []byte                  `json:"nonceManager"`
 }
 
-// offRampDynamicChainConfig maps to DynamicChainConfig in OffRamp.sol
+// offRampDynamicChainConfig maps to DynamicConfig in OffRamp.sol
 type offRampDynamicChainConfig struct {
 	FeeQuoter                               []byte `json:"feeQuoter"`
 	PermissionLessExecutionThresholdSeconds uint32 `json:"permissionLessExecutionThresholdSeconds"`
-	MaxTokenTransferGas                     uint32 `json:"maxTokenTransferGas"`
-	MaxPoolReleaseOrMintGas                 uint32 `json:"maxPoolReleaseOrMintGas"`
-	MessageValidator                        []byte `json:"messageValidator"`
+	IsRMNVerificationDisabled               bool   `json:"isRMNVerificationDisabled"`
+	MessageInterceptor                      []byte `json:"messageInterceptor"`
 }
 
 //nolint:unused // it will be used soon // TODO: Remove nolint
@@ -961,16 +1140,6 @@ type offRampDestChainConfig struct {
 	SequenceNumber   uint64 `json:"sequenceNumber"`
 	AllowListEnabled bool   `json:"allowListEnabled"`
 	Router           []byte `json:"router"`
-}
-
-// feeQuoterStaticConfig is used to parse the response from the feeQuoter contract's getStaticConfig method.
-// See: https://github.com/goplugin/ccip/blob/a3f61f7458e4499c2c62eb38581c60b4942b1160/contracts/src/v0.8/ccip/FeeQuoter.sol#L946
-//
-//nolint:lll // It's a URL.
-type feeQuoterStaticConfig struct {
-	MaxFeeJuelsPerMsg  cciptypes.BigInt `json:"maxFeeJuelsPerMsg"`
-	LinkToken          []byte           `json:"linkToken"`
-	StalenessThreshold uint32           `json:"stalenessThreshold"`
 }
 
 // getData returns data for a single reader.
@@ -1000,22 +1169,31 @@ func (r *ccipChainReader) getDestinationData(
 }
 
 // See DynamicChainConfig in OnRamp.sol
-type onRampDynamicChainConfig struct {
-	FeeQuoter        []byte `json:"feeQuoter"`
-	MessageValidator []byte `json:"messageValidator"`
-	FeeAggregator    []byte `json:"feeAggregator"`
-	AllowListAdmin   []byte `json:"allowListAdmin"`
+type onRampDynamicConfig struct {
+	FeeQuoter              []byte `json:"feeQuoter"`
+	ReentrancyGuardEntered bool   `json:"reentrancyGuardEntered"`
+	MessageInterceptor     []byte `json:"messageInterceptor"`
+	FeeAggregator          []byte `json:"feeAggregator"`
+	AllowListAdmin         []byte `json:"allowListAdmin"`
+}
+
+// We're wrapping the onRampDynamicConfig this way to map to on-chain return type which is a named struct
+// https://github.com/goplugin/pluginv3.0/blob/12af1de88238e0e918177d6b5622070417f48adf/contracts/src/v0.8/ccip/onRamp/OnRamp.sol#L328
+//
+//nolint:lll
+type getOnRampDynamicConfigResponse struct {
+	DynamicConfig onRampDynamicConfig `json:"dynamicConfig"`
 }
 
 func (r *ccipChainReader) getOnRampDynamicConfigs(
 	ctx context.Context,
 	srcChains []cciptypes.ChainSelector,
-) (map[cciptypes.ChainSelector]onRampDynamicChainConfig, error) {
+) (map[cciptypes.ChainSelector]getOnRampDynamicConfigResponse, error) {
 	if err := validateExtendedReaderExistence(r.contractReaders, srcChains...); err != nil {
 		return nil, err
 	}
 
-	result := make(map[cciptypes.ChainSelector]onRampDynamicChainConfig)
+	result := make(map[cciptypes.ChainSelector]getOnRampDynamicConfigResponse)
 
 	mu := new(sync.Mutex)
 	eg := new(errgroup.Group)
@@ -1028,15 +1206,18 @@ func (r *ccipChainReader) getOnRampDynamicConfigs(
 		chainSel := chainSel
 		eg.Go(func() error {
 			// read onramp dynamic config
-			resp := onRampDynamicChainConfig{}
+			resp := getOnRampDynamicConfigResponse{}
 			err := r.contractReaders[chainSel].ExtendedGetLatestValue(
 				ctx,
 				consts.ContractNameOnRamp,
-				consts.MethodNameOnrampGetDynamicConfig, //nolint:staticcheck // TODO: use the new name.
+				consts.MethodNameOnRampGetDynamicConfig,
 				primitives.Unconfirmed,
 				map[string]any{},
 				&resp,
 			)
+			r.lggr.Debugw("got onramp dynamic config",
+				"chain", chainSel,
+				"resp", resp)
 			if err != nil {
 				return fmt.Errorf("failed to get onramp dynamic config: %w", err)
 			}
@@ -1054,10 +1235,66 @@ func (r *ccipChainReader) getOnRampDynamicConfigs(
 	return result, nil
 }
 
+// See DestChainConfig in OnRamp.sol
+type onRampDestChainConfig struct {
+	SequenceNumber   uint64 `json:"sequenceNumber"`
+	AllowListEnabled bool   `json:"allowListEnabled"`
+	Router           []byte `json:"router"`
+}
+
+func (r *ccipChainReader) getOnRampDestChainConfig(
+	ctx context.Context,
+	srcChains []cciptypes.ChainSelector,
+) (map[cciptypes.ChainSelector]onRampDestChainConfig, error) {
+	if err := validateExtendedReaderExistence(r.contractReaders, srcChains...); err != nil {
+		return nil, err
+	}
+
+	result := make(map[cciptypes.ChainSelector]onRampDestChainConfig)
+
+	mu := new(sync.Mutex)
+	eg := new(errgroup.Group)
+	for _, chainSel := range srcChains {
+		// no onramp for the destination chain
+		if chainSel == r.destChain {
+			continue
+		}
+
+		// For chain X, all DestChainConfigs will have one of 2 values for the Router address
+		// 1. Chain X Test Router in case we're testing a new lane
+		// 2. Chain X Router
+		chainSel := chainSel
+		eg.Go(func() error {
+			resp := onRampDestChainConfig{}
+			err := r.contractReaders[chainSel].ExtendedGetLatestValue(
+				ctx,
+				consts.ContractNameOnRamp,
+				consts.MethodNameOnRampGetDestChainConfig,
+				primitives.Unconfirmed,
+				map[string]any{
+					"destChainSelector": r.destChain,
+				},
+				&resp,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to get onramp dest chain config: %w", err)
+			}
+			mu.Lock()
+			result[chainSel] = resp
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // signer is used to parse the response from the RMNRemote contract's getVersionedConfig method.
 // See: https://github.com/goplugin/ccip/blob/ccip-develop/contracts/src/v0.8/ccip/rmn/RMNRemote.sol#L42-L45
-//
-//nolint:lll // It's a URL.
 type signer struct {
 	OnchainPublicKey []byte `json:"onchainPublicKey"`
 	NodeIndex        uint64 `json:"nodeIndex"`
@@ -1065,21 +1302,113 @@ type signer struct {
 
 // config is used to parse the response from the RMNRemote contract's getVersionedConfig method.
 // See: https://github.com/goplugin/ccip/blob/ccip-develop/contracts/src/v0.8/ccip/rmn/RMNRemote.sol#L49-L53
-//
-//nolint:lll // It's a URL.
 type config struct {
 	RMNHomeContractConfigDigest []byte   `json:"rmnHomeContractConfigDigest"`
 	Signers                     []signer `json:"signers"`
-	MinSigners                  uint64   `json:"minSigners"`
+	F                           uint64   `json:"f"` // previously: MinSigners
 }
 
-// versionnedConfig is used to parse the response from the RMNRemote contract's getVersionedConfig method.
+// versionedConfig is used to parse the response from the RMNRemote contract's getVersionedConfig method.
 // See: https://github.com/goplugin/ccip/blob/ccip-develop/contracts/src/v0.8/ccip/rmn/RMNRemote.sol#L167-L169
-//
-//nolint:lll // It's a URL.
 type versionedConfig struct {
 	Version uint32 `json:"version"`
 	Config  config `json:"config"`
+}
+
+// getARM gets the RMN remote address from the RMN proxy address.
+// See: https://github.com/goplugin/pluginv3.0/blob/3c7817c566c5d0aa14519c679fa85b227ac97cc5/contracts/src/v0.8/ccip/rmn/ARMProxy.sol#L40-L44
+//
+//nolint:lll
+func (r *ccipChainReader) getRMNRemoteAddress(
+	ctx context.Context,
+	chain cciptypes.ChainSelector,
+	rmnRemoteProxyAddress []byte) ([]byte, error) {
+	_, err := bindExtendedReaderContract(ctx, r.lggr, r.contractReaders, chain, consts.ContractNameRMNProxy, rmnRemoteProxyAddress)
+	if err != nil {
+		return nil, fmt.Errorf("bind RMN proxy contract: %w", err)
+	}
+
+	// get the RMN remote address from the proxy
+	var rmnRemoteAddress []byte
+	err = r.getDestinationData(
+		ctx,
+		chain,
+		consts.ContractNameRMNProxy,
+		consts.MethodNameGetARM,
+		&rmnRemoteAddress,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to lookup RMN remote address (RMN proxy): %w", err)
+	}
+
+	return rmnRemoteAddress, nil
+}
+
+// Get the DestChainConfig from the FeeQuoter contract on the given chain.
+func (r *ccipChainReader) getFeeQuoterDestChainConfig(
+	ctx context.Context,
+	chainSelector cciptypes.ChainSelector,
+) (cciptypes.FeeQuoterDestChainConfig, error) {
+	if err := validateExtendedReaderExistence(r.contractReaders, chainSelector); err != nil {
+		return cciptypes.FeeQuoterDestChainConfig{}, err
+	}
+
+	var destChainConfig cciptypes.FeeQuoterDestChainConfig
+	srcReader := r.contractReaders[chainSelector]
+	err := srcReader.ExtendedGetLatestValue(
+		ctx,
+		consts.ContractNameFeeQuoter,
+		consts.MethodNameGetDestChainConfig,
+		primitives.Unconfirmed,
+		map[string]any{
+			"destChainSelector": r.destChain,
+		},
+		&destChainConfig,
+	)
+
+	if err != nil {
+		return cciptypes.FeeQuoterDestChainConfig{}, fmt.Errorf("failed to get dest chain config: %w", err)
+	}
+
+	return destChainConfig, nil
+}
+
+// GetMedianDataAvailabilityGasConfig returns the median of the DataAvailabilityGasConfig values from all FeeQuoters
+// DA data lives in the FeeQuoter contract on the source chain. To get the config of the destination chain, we need to
+// read the FeeQuoter contract on the source chain. As nodes are not required to have all chains configured, we need to
+// read all FeeQuoter contracts to get the median.
+func (r *ccipChainReader) GetMedianDataAvailabilityGasConfig(
+	ctx context.Context,
+) (cciptypes.DataAvailabilityGasConfig, error) {
+	overheadGasValues := make([]uint32, 0)
+	gasPerByteValues := make([]uint16, 0)
+	multiplierBpsValues := make([]uint16, 0)
+
+	// TODO: pay attention to performance here, as we are looping through all chains
+	for chain := range r.contractReaders {
+		config, err := r.getFeeQuoterDestChainConfig(ctx, chain)
+		if err != nil {
+			continue
+		}
+		if config.IsEnabled && config.HasNonEmptyDAGasParams() {
+			overheadGasValues = append(overheadGasValues, config.DestDataAvailabilityOverheadGas)
+			gasPerByteValues = append(gasPerByteValues, config.DestGasPerDataAvailabilityByte)
+			multiplierBpsValues = append(multiplierBpsValues, config.DestDataAvailabilityMultiplierBps)
+		}
+	}
+
+	// Calculate medians
+	medianOverheadGas := consensus.Median(overheadGasValues, func(a, b uint32) bool { return a < b })
+	medianGasPerByte := consensus.Median(gasPerByteValues, func(a, b uint16) bool { return a < b })
+	medianMultiplierBps := consensus.Median(multiplierBpsValues, func(a, b uint16) bool { return a < b })
+
+	daConfig := cciptypes.DataAvailabilityGasConfig{
+		DestDataAvailabilityOverheadGas:   medianOverheadGas,
+		DestGasPerDataAvailabilityByte:    medianGasPerByte,
+		DestDataAvailabilityMultiplierBps: medianMultiplierBps,
+	}
+
+	return daConfig, nil
 }
 
 // Interface compliance check

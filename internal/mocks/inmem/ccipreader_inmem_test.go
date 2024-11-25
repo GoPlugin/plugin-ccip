@@ -8,9 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	plugintypes2 "github.com/goplugin/plugin-ccip/plugintypes"
 )
 

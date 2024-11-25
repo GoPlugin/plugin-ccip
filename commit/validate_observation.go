@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // ValidateObservation validates an observation to ensure it is well-formed

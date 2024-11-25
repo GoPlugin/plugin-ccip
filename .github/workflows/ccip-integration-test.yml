@@ -11,7 +11,7 @@ jobs:
     env:
       # We explicitly have this env var not be "CL_DATABASE_URL" to avoid having it be used by core related tests
       # when they should not be using it, while still allowing us to DRY up the setup
-      DB_URL: postgresql://postgres:postgres@localhost:5432/pluginv3.0_test?sslmode=disable
+      DB_URL: postgresql://postgres:postgres@localhost:5432/plugin_test?sslmode=disable
 
     runs-on: ubuntu-latest
     strategy:
@@ -26,7 +26,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
       - name: Display Go version
         run: go version
-      - name: Clone Pluginv3.0 repo
+      - name: Clone Plugin repo
         uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
         with:
           repository: goplugin/pluginv3.0
@@ -53,7 +53,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/pluginv3.0
           go mod download
-          cd $GITHUB_WORKSPACE/pluginv3.0/integration-tests
+          cd $GITHUB_WORKSPACE/plugn_latest/integration-tests
           go mod download
       - name: Build binary
         run: |
@@ -67,8 +67,8 @@ jobs:
           CL_DATABASE_URL: ${{ env.DB_URL }}
       - name: Run ccip ocr3 initial deploy integration test
         run: |
-          cd $GITHUB_WORKSPACE/pluginv3.0/integration-tests
-          go test -v -run '^TestInitialDeploy$' -timeout 6m ./deployment/ccip/changeset
+          cd $GITHUB_WORKSPACE/pluginv3.0/deployment
+          go test -v -run '^TestInitialDeploy$' -timeout 6m ./ccip/changeset
           EXITCODE=${PIPESTATUS[0]}
           if [ $EXITCODE -ne 0 ]; then
             echo "Integration test failed"
@@ -80,8 +80,8 @@ jobs:
           CL_DATABASE_URL: ${{ env.DB_URL }}
       - name: Run ccip ocr3 add chain integration test
         run: |
-          cd $GITHUB_WORKSPACE/pluginv3.0/integration-tests
-          go test -v -run '^TestAddChainInbound$' -timeout 6m ./deployment/ccip/
+          cd $GITHUB_WORKSPACE/plugin_latet/deployment
+          go test -v -run '^TestAddChainInbound$' -timeout 6m ./ccip/
           EXITCODE=${PIPESTATUS[0]}
           if [ $EXITCODE -ne 0 ]; then
             echo "Integration test failed"

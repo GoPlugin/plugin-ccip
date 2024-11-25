@@ -11,19 +11,20 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/goplugin/plugin-common/pkg/hashutil"
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/merklemulti"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/execute/internal/gas"
-	"github.com/goplugin/plugin-ccip/execute/internal/gas/evm"
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
 	"github.com/goplugin/plugin-ccip/internal/mocks"
+	gasmock "github.com/goplugin/plugin-ccip/mocks/execute/internal_/gas"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func randomAddress() string {
@@ -34,7 +35,6 @@ func randomAddress() string {
 
 // mustMakeBytes parses a given string into a byte array, any error causes a panic. Pass in an empty string for a
 // random byte array.
-// nolint:unparam // surly this will be useful at some point...
 func mustMakeBytes(byteStr string) cciptypes.Bytes32 {
 	if byteStr == "" {
 		var randomBytes cciptypes.Bytes32
@@ -190,7 +190,7 @@ func makeTestCommitReportWithSenders(
 	firstSeqNum,
 	block int,
 	timestamp int64,
-	senders []cciptypes.Bytes,
+	senders []cciptypes.UnknownAddress,
 	rootOverride cciptypes.Bytes32,
 	executed []cciptypes.SeqNum,
 ) exectypes.CommitData {
@@ -217,7 +217,7 @@ func makeTestCommitReport(
 	firstSeqNum,
 	block int,
 	timestamp int64,
-	sender cciptypes.Bytes,
+	sender cciptypes.UnknownAddress,
 	rootOverride cciptypes.Bytes32,
 	executed []cciptypes.SeqNum,
 ) exectypes.CommitData {
@@ -438,7 +438,7 @@ func Test_Builder_Build(t *testing.T) {
 	hasher := mocks.NewMessageHasher()
 	codec := mocks.NewExecutePluginJSONReportCodec()
 	lggr := logger.Test(t)
-	sender, err := cciptypes.NewBytesFromString(randomAddress())
+	sender, err := cciptypes.NewUnknownAddressFromHex(randomAddress())
 	require.NoError(t, err)
 	defaultNonces := map[cciptypes.ChainSelector]map[string]uint64{
 		1: {
@@ -448,9 +448,9 @@ func Test_Builder_Build(t *testing.T) {
 			sender.String(): 0,
 		},
 	}
-	tenSenders := make([]cciptypes.Bytes, 10)
+	tenSenders := make([]cciptypes.UnknownAddress, 10)
 	for i := range tenSenders {
-		tenSenders[i], err = cciptypes.NewBytesFromString(randomAddress())
+		tenSenders[i], err = cciptypes.NewUnknownAddressFromHex(randomAddress())
 		require.NoError(t, err)
 	}
 
@@ -747,11 +747,15 @@ func Test_Builder_Build(t *testing.T) {
 			// look for error in Add or Build
 			foundError := false
 
+			ep := gasmock.NewMockEstimateProvider(t)
+			ep.EXPECT().CalculateMessageMaxGas(mock.Anything).Return(uint64(0)).Maybe()
+			ep.EXPECT().CalculateMerkleTreeGas(mock.Anything).Return(uint64(0)).Maybe()
+
 			builder := NewBuilder(
 				lggr,
 				hasher,
 				codec,
-				evm.EstimateProvider{},
+				ep,
 				tt.args.nonces,
 				1,
 				tt.args.maxReportSize,
@@ -819,6 +823,7 @@ func Test_execReportBuilder_verifyReport(t *testing.T) {
 	type args struct {
 		execReport cciptypes.ExecutePluginReportSingleChain
 	}
+
 	tests := []struct {
 		name             string
 		fields           fields
@@ -834,7 +839,6 @@ func Test_execReportBuilder_verifyReport(t *testing.T) {
 				execReport: cciptypes.ExecutePluginReportSingleChain{},
 			},
 			fields: fields{
-				estimateProvider:   evm.EstimateProvider{},
 				maxReportSizeBytes: 1000,
 				maxGas:             1000000,
 			},
@@ -856,9 +860,15 @@ func Test_execReportBuilder_verifyReport(t *testing.T) {
 				},
 			},
 			fields: fields{
-				estimateProvider:   evm.EstimateProvider{},
 				maxReportSizeBytes: 10000,
 				maxGas:             1000000,
+				estimateProvider: func() gas.EstimateProvider {
+					// values taken from evm.EstimateProvider
+					mockep := gasmock.NewMockEstimateProvider(t)
+					mockep.EXPECT().CalculateMessageMaxGas(mock.Anything).Return(uint64(119920)).Times(4)
+					mockep.EXPECT().CalculateMerkleTreeGas(mock.Anything).Return(uint64(2560)).Times(1)
+					return mockep
+				}(),
 			},
 			expectedIsValid: true,
 			expectedMetadata: validationMetadata{
@@ -879,7 +889,6 @@ func Test_execReportBuilder_verifyReport(t *testing.T) {
 				},
 			},
 			fields: fields{
-				estimateProvider:   evm.EstimateProvider{},
 				maxReportSizeBytes: 1000,
 				maxGas:             1000000,
 			},
@@ -898,7 +907,6 @@ func Test_execReportBuilder_verifyReport(t *testing.T) {
 				},
 			},
 			fields: fields{
-				estimateProvider: evm.EstimateProvider{},
 				accumulated: validationMetadata{
 					encodedSizeBytes: 1000,
 				},
@@ -918,8 +926,7 @@ func Test_execReportBuilder_verifyReport(t *testing.T) {
 				},
 			},
 			fields: fields{
-				estimateProvider: evm.EstimateProvider{},
-				encoder:          badCodec{},
+				encoder: badCodec{},
 			},
 			expectedError: "unable to encode report",
 			expectedLog:   "unable to encode report",
@@ -939,10 +946,18 @@ func Test_execReportBuilder_verifyReport(t *testing.T) {
 				resolvedEncoder = mocks.NewExecutePluginJSONReportCodec()
 			}
 
+			ep := tt.fields.estimateProvider
+			if ep == nil {
+				mockep := gasmock.NewMockEstimateProvider(t)
+				mockep.EXPECT().CalculateMessageMaxGas(mock.Anything).Return(uint64(0)).Maybe()
+				mockep.EXPECT().CalculateMerkleTreeGas(mock.Anything).Return(uint64(0)).Maybe()
+				ep = mockep
+			}
+
 			b := &execReportBuilder{
 				lggr:               lggr,
 				encoder:            resolvedEncoder,
-				estimateProvider:   tt.fields.estimateProvider,
+				estimateProvider:   ep,
 				maxReportSizeBytes: tt.fields.maxReportSizeBytes,
 				maxGas:             tt.fields.maxGas,
 				accumulated:        tt.fields.accumulated,
@@ -1157,9 +1172,13 @@ func Test_execReportBuilder_checkMessage(t *testing.T) {
 			t.Parallel()
 			lggr, logs := logger.TestObserved(t, zapcore.DebugLevel)
 
+			ep := gasmock.NewMockEstimateProvider(t)
+			ep.EXPECT().CalculateMessageMaxGas(mock.Anything).Return(uint64(0)).Maybe()
+			ep.EXPECT().CalculateMerkleTreeGas(mock.Anything).Return(uint64(0)).Maybe()
+
 			b := &execReportBuilder{
 				lggr:             lggr,
-				estimateProvider: evm.EstimateProvider{},
+				estimateProvider: ep,
 				accumulated:      tt.fields.accumulated,
 				sendersNonce:     tt.args.nonces,
 			}

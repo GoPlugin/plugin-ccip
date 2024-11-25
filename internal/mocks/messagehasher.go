@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 type MessageHasher struct{}

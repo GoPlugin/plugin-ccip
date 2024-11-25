@@ -12,9 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"golang.org/x/time/rate"
+
+	"github.com/goplugin/plugin-common/pkg/logger"
+
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 const (

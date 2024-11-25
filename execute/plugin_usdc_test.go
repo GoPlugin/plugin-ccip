@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sel "github.com/goplugin/chain-selectors"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
 
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/internal/libs/testhelpers/rand"
 	"github.com/goplugin/plugin-ccip/internal/mocks/inmem"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func Test_USDC_Transfer(t *testing.T) {
@@ -23,24 +23,20 @@ func Test_USDC_Transfer(t *testing.T) {
 	sourceChain := cciptypes.ChainSelector(sel.ETHEREUM_TESTNET_SEPOLIA.Selector)
 	destChain := cciptypes.ChainSelector(sel.ETHEREUM_MAINNET_BASE_1.Selector)
 
-	addressBytes, err := cciptypes.NewBytesFromString(randomEthAddress)
+	addressBytes, err := cciptypes.NewUnknownAddressFromHex(randomEthAddress)
 	require.NoError(t, err)
 
 	messages := []inmem.MessagesWithMetadata{
 		makeMsg(102, sourceChain, destChain, false),
 		makeMsg(103, sourceChain, destChain, false),
-		makeMsgWithToken(104, sourceChain, destChain, false, []cciptypes.RampTokenAmount{
-			{
-				SourcePoolAddress: addressBytes,
-				ExtraData:         readerpkg.NewSourceTokenDataPayload(1, 0).ToBytes(),
-			},
-		}),
-		makeMsgWithToken(105, sourceChain, destChain, false, []cciptypes.RampTokenAmount{
-			{
-				SourcePoolAddress: addressBytes,
-				ExtraData:         readerpkg.NewSourceTokenDataPayload(2, 0).ToBytes(),
-			},
-		}),
+		makeMsg(104, sourceChain, destChain, false, withTokens(cciptypes.RampTokenAmount{
+			SourcePoolAddress: addressBytes,
+			ExtraData:         readerpkg.NewSourceTokenDataPayload(1, 0).ToBytes(),
+		})),
+		makeMsg(105, sourceChain, destChain, false, withTokens(cciptypes.RampTokenAmount{
+			SourcePoolAddress: addressBytes,
+			ExtraData:         readerpkg.NewSourceTokenDataPayload(2, 0).ToBytes(),
+		})),
 	}
 
 	events := []*readerpkg.MessageSentEvent{

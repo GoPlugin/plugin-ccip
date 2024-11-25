@@ -3,7 +3,7 @@ package reader
 import (
 	"fmt"
 
-	"github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+	"github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // TODO: This is a temporary solution to avoid circular dependencies. There should be a better way to do this.

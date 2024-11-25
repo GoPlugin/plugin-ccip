@@ -9,36 +9,37 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/goplugin/plugin-libocr/commontypes"
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
+	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	commonconfig "github.com/goplugin/plugin-common/pkg/config"
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/types/query/primitives"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
 
-	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
-
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
 	"github.com/goplugin/plugin-ccip/chainconfig"
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
-	"github.com/goplugin/plugin-ccip/execute/internal/gas/evm"
+	"github.com/goplugin/plugin-ccip/execute/internal/gas"
 	"github.com/goplugin/plugin-ccip/execute/report"
 	"github.com/goplugin/plugin-ccip/execute/tokendata"
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
 	"github.com/goplugin/plugin-ccip/internal/libs/testhelpers"
+	"github.com/goplugin/plugin-ccip/internal/libs/testhelpers/rand"
 	"github.com/goplugin/plugin-ccip/internal/mocks"
 	"github.com/goplugin/plugin-ccip/internal/mocks/inmem"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 	"github.com/goplugin/plugin-ccip/internal/reader"
+	gasmock "github.com/goplugin/plugin-ccip/mocks/execute/internal_/gas"
 	readermock "github.com/goplugin/plugin-ccip/mocks/pkg/contractreader"
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	"github.com/goplugin/plugin-ccip/pkg/contractreader"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 	plugintypes2 "github.com/goplugin/plugin-ccip/plugintypes"
 )
@@ -56,6 +57,8 @@ type IntTest struct {
 	server              *ConfigurableAttestationServer
 	tokenObserverConfig []pluginconfig.TokenDataObserverConfig
 	tokenChainReader    map[cciptypes.ChainSelector]contractreader.ContractReaderFacade
+	feeCalculator       *exectypes.CCIPMessageFeeUSD18Calculator
+	execCostCalculator  *exectypes.StaticMessageExecCostUSD18Calculator
 }
 
 func SetupSimpleTest(t *testing.T, srcSelector, dstSelector cciptypes.ChainSelector) *IntTest {
@@ -114,6 +117,20 @@ func (it *IntTest) WithMessages(messages []inmem.MessagesWithMetadata, crBlockNu
 		it.ccipReader.Messages[it.srcSelector],
 		messages...,
 	)
+}
+
+func (it *IntTest) WithCustomFeeBoosting(
+	relativeBoostPerWaitHour float64,
+	now func() time.Time,
+	messageCost map[cciptypes.Bytes32]plugintypes.USD18,
+) {
+	it.feeCalculator = exectypes.NewCCIPMessageFeeUSD18Calculator(
+		logger.Test(it.t),
+		it.ccipReader,
+		relativeBoostPerWaitHour,
+		now,
+	)
+	it.execCostCalculator = exectypes.NewStaticMessageExecCostUSD18Calculator(messageCost)
 }
 
 func (it *IntTest) WithUSDC(
@@ -203,44 +220,36 @@ func (it *IntTest) Start() *testhelpers.OCR3Runner[[]byte] {
 	)
 	require.NoError(it.t, err)
 
+	var feeCalculator exectypes.MessageFeeE18USDCalculator
+	if it.feeCalculator != nil {
+		feeCalculator = it.feeCalculator
+	} else {
+		feeCalculator = exectypes.NewZeroMessageFeeUSD18Calculator()
+	}
+
+	var execCostCalculator exectypes.MessageExecCostUSD18Calculator
+	if it.execCostCalculator != nil {
+		execCostCalculator = it.execCostCalculator
+	} else {
+		execCostCalculator = exectypes.NewZeroMessageExecCostUSD18Calculator()
+	}
+
+	costlyMessageObserver := exectypes.NewCostlyMessageObserver(
+		logger.Test(it.t),
+		true,
+		feeCalculator,
+		execCostCalculator,
+	)
+
+	ep := gasmock.NewMockEstimateProvider(it.t)
+	ep.EXPECT().CalculateMessageMaxGas(mock.Anything).Return(uint64(0)).Maybe()
+	ep.EXPECT().CalculateMerkleTreeGas(mock.Anything).Return(uint64(0)).Maybe()
+
 	oracleIDToP2pID := testhelpers.CreateOracleIDToP2pID(1, 2, 3)
 	nodesSetup := []nodeSetup{
-		newNode(
-			it.donID,
-			logger.Test(it.t),
-			cfg,
-			it.dstSelector,
-			it.msgHasher,
-			it.ccipReader,
-			homeChain,
-			tkObs,
-			oracleIDToP2pID,
-			1,
-			1),
-		newNode(
-			it.donID,
-			logger.Test(it.t),
-			cfg,
-			it.dstSelector,
-			it.msgHasher,
-			it.ccipReader,
-			homeChain,
-			tkObs,
-			oracleIDToP2pID,
-			2,
-			1),
-		newNode(
-			it.donID,
-			logger.Test(it.t),
-			cfg,
-			it.dstSelector,
-			it.msgHasher,
-			it.ccipReader,
-			homeChain,
-			tkObs,
-			oracleIDToP2pID,
-			3,
-			1),
+		it.newNode(cfg, homeChain, ep, tkObs, costlyMessageObserver, oracleIDToP2pID, 1, 1),
+		it.newNode(cfg, homeChain, ep, tkObs, costlyMessageObserver, oracleIDToP2pID, 2, 1),
+		it.newNode(cfg, homeChain, ep, tkObs, costlyMessageObserver, oracleIDToP2pID, 3, 1),
 	}
 
 	require.NoError(it.t, homeChain.Close())
@@ -264,15 +273,16 @@ func (it *IntTest) Close() {
 	}
 }
 
-func newNode(
-	donID plugintypes.DonID,
-	lggr logger.Logger,
+func (it *IntTest) UpdateExecutionCost(id cciptypes.Bytes32, val int64) {
+	it.execCostCalculator.UpdateCosts(id, plugintypes.NewUSD18(val))
+}
+
+func (it *IntTest) newNode(
 	cfg pluginconfig.ExecuteOffchainConfig,
-	destChain cciptypes.ChainSelector,
-	msgHasher cciptypes.MessageHasher,
-	ccipReader readerpkg.CCIPReader,
 	homeChain reader.HomeChain,
+	ep gas.EstimateProvider,
 	tokenDataObserver tokendata.TokenDataObserver,
+	costlyMessageObserver exectypes.CostlyMessageObserver,
 	oracleIDToP2pID map[commontypes.OracleID]libocrtypes.PeerID,
 	id int,
 	N int,
@@ -285,36 +295,26 @@ func newNode(
 	}
 
 	node1 := NewPlugin(
-		donID,
+		it.donID,
 		rCfg,
 		cfg,
-		destChain,
+		it.dstSelector,
 		oracleIDToP2pID,
-		ccipReader,
+		it.ccipReader,
 		reportCodec,
-		msgHasher,
+		it.msgHasher,
 		homeChain,
 		tokenDataObserver,
-		evm.EstimateProvider{},
-		lggr,
+		ep,
+		logger.Test(it.t),
+		costlyMessageObserver,
 	)
 
 	return nodeSetup{
 		node:        node1,
 		reportCodec: reportCodec,
-		msgHasher:   msgHasher,
+		msgHasher:   it.msgHasher,
 	}
-}
-
-func makeMsgWithToken(
-	seqNum cciptypes.SeqNum,
-	src, dest cciptypes.ChainSelector,
-	executed bool,
-	tokens []cciptypes.RampTokenAmount,
-) inmem.MessagesWithMetadata {
-	msg := makeMsg(seqNum, src, dest, executed)
-	msg.Message.TokenAmounts = tokens
-	return msg
 }
 
 func mustEncodeChainConfig(cc chainconfig.ChainConfig) []byte {
@@ -378,14 +378,41 @@ func newMessageSentEvent(
 	return &readerpkg.MessageSentEvent{Arg0: buf}
 }
 
-func makeMsg(seqNum cciptypes.SeqNum, src, dest cciptypes.ChainSelector, executed bool) inmem.MessagesWithMetadata {
-	return inmem.MessagesWithMetadata{
-		Message: cciptypes.Message{
-			Header: cciptypes.RampMessageHeader{
-				SourceChainSelector: src,
-				SequenceNumber:      seqNum,
-			},
+type msgOption func(*cciptypes.Message)
+
+func withFeeValueJuels(fee int64) msgOption {
+	return func(m *cciptypes.Message) {
+		m.FeeValueJuels = cciptypes.NewBigIntFromInt64(fee)
+	}
+}
+
+func withTokens(tokenAmounts ...cciptypes.RampTokenAmount) msgOption {
+	return func(m *cciptypes.Message) {
+		m.TokenAmounts = tokenAmounts
+	}
+}
+
+func makeMsg(
+	seqNum cciptypes.SeqNum,
+	src, dest cciptypes.ChainSelector,
+	executed bool,
+	opts ...msgOption,
+) inmem.MessagesWithMetadata {
+	msg := cciptypes.Message{
+		Header: cciptypes.RampMessageHeader{
+			SourceChainSelector: src,
+			SequenceNumber:      seqNum,
+			MessageID:           rand.RandomBytes32(),
 		},
+		FeeValueJuels: cciptypes.NewBigIntFromInt64(100),
+	}
+
+	for _, opt := range opts {
+		opt(&msg)
+	}
+
+	return inmem.MessagesWithMetadata{
+		Message:     msg,
 		Destination: dest,
 		Executed:    executed,
 	}
@@ -469,4 +496,16 @@ func extractSequenceNumbers(messages []cciptypes.Message) []cciptypes.SeqNum {
 		return m.Header.SequenceNumber
 	})
 	return sequenceNumbers
+}
+
+type timeMachine struct {
+	now time.Time
+}
+
+func (t *timeMachine) Now() time.Time {
+	return t.now
+}
+
+func (t *timeMachine) SetNow(now time.Time) {
+	t.now = now
 }

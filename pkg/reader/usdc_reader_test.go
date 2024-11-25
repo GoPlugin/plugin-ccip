@@ -5,20 +5,21 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
+	"github.com/goplugin/plugin-common/pkg/logger"
+
 	sel "github.com/goplugin/chain-selectors"
 
 	"github.com/goplugin/plugin-common/pkg/types"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
 
 	reader "github.com/goplugin/plugin-ccip/mocks/pkg/contractreader"
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	"github.com/goplugin/plugin-ccip/pkg/contractreader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 )
 
@@ -67,7 +68,7 @@ func Test_USDCMessageReader_New(t *testing.T) {
 				readers[cciptypes.ChainSelector(1)] = m
 				return readers
 			},
-			errorMessage: "unable to bind MessageTransmitter for chain 1",
+			errorMessage: "unable to bind MessageTransmitter 0x0000000000000000000000000000000000000002 for chain 1",
 		},
 		{
 			name: "happy path",

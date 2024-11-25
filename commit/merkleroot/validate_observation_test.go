@@ -11,10 +11,9 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
 	reader_mock "github.com/goplugin/plugin-ccip/mocks/pkg/reader"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 func Test_validateObservedMerkleRoots(t *testing.T) {

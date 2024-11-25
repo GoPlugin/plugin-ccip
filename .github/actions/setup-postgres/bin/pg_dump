@@ -9,12 +9,12 @@
 #
 # Usage:
 # You should be able to setup your test db via:
-# - go build -o pluginv3.0.test . # Build the pluginv3.0 binary to run test db prep commands from
-# - export CL_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pluginv3.0_test?sslmode=disable"
+# - go build -o plugin.test . # Build the plugin binary to run test db prep commands from
+# - export CL_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/plugin_test?sslmode=disable"
 # - pushd .github/actions/setup-postgres/ # Navigate to the setup-postgres action so we can spin up a docker postgres
 # instance
 # - docker compose up # Spin up postgres
-# - ./pluginv3.0.test local db preparetest # Run the db migration, which will shell out to our pg_dump wrapper too.
+# - ./plugin.test local db preparetest # Run the db migration, which will shell out to our pg_dump wrapper too.
 # - popd 
 # - go test -timeout 30s ./core/services/workflows/... -v # Run tests that use the database
 

@@ -9,14 +9,17 @@ import (
 	"golang.org/x/exp/maps"
 
 	mapset "github.com/deckarep/golang-set/v2"
+
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
+
+	typconv "github.com/goplugin/plugin-ccip/internal/libs/typeconv"
 
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon/consensus"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 // Outcome depending on the current state, either:
@@ -167,9 +170,10 @@ func buildReport(
 			MerkleRoot    cciptypes.Bytes32
 			OnRampAddress string
 		}
+
 		signedRoots := mapset.NewSet[rootKey]()
 		for _, laneUpdate := range q.RMNSignatures.LaneUpdates {
-			signedRoots.Add(rootKey{
+			rk := rootKey{
 				ChainSel: cciptypes.ChainSelector(laneUpdate.LaneSource.SourceChainSelector),
 				SeqNumsRange: cciptypes.NewSeqNumRange(
 					cciptypes.SeqNum(laneUpdate.ClosedInterval.MinMsgNr),
@@ -177,23 +181,30 @@ func buildReport(
 				),
 				MerkleRoot: cciptypes.Bytes32(laneUpdate.Root),
 				// NOTE: convert address into a comparable value for mapset.
-				OnRampAddress: string(laneUpdate.LaneSource.OnrampAddress),
-			})
+				OnRampAddress: typconv.AddressBytesToString(
+					laneUpdate.LaneSource.OnrampAddress,
+					laneUpdate.LaneSource.SourceChainSelector),
+			}
+
+			lggr.Infow("Found signed root", "root", rk)
+			signedRoots.Add(rk)
 		}
 
 		// Only report roots that are present in RMN signatures.
 		rootsToReport := make([]cciptypes.MerkleRootChain, 0)
 		for _, root := range roots {
-			if signedRoots.Contains(rootKey{
-				ChainSel:     root.ChainSel,
-				SeqNumsRange: root.SeqNumsRange,
-				MerkleRoot:   root.MerkleRoot,
-				// NOTE: convert address into a comparable value for mapset.
-				OnRampAddress: string(root.OnRampAddress),
-			}) {
+			rk := rootKey{
+				ChainSel:      root.ChainSel,
+				SeqNumsRange:  root.SeqNumsRange,
+				MerkleRoot:    root.MerkleRoot,
+				OnRampAddress: typconv.AddressBytesToString(root.OnRampAddress, uint64(root.ChainSel)),
+			}
+
+			if signedRoots.Contains(rk) {
+				lggr.Infow("Root is signed, appending to the report", "root", rk)
 				rootsToReport = append(rootsToReport, root)
 			} else {
-				lggr.Warnw("skipping merkle root not signed by RMN", "root", root)
+				lggr.Warnw("Root not signed, skipping from the report", "root", rk)
 			}
 		}
 		roots = rootsToReport
@@ -204,9 +215,7 @@ func buildReport(
 		RootsToReport:       roots,
 		OffRampNextSeqNums:  prevOutcome.OffRampNextSeqNums,
 		RMNReportSignatures: sigs,
-		// TODO: Calculate it for real
-		RMNRawVs:     cciptypes.NewBigIntFromInt64(0),
-		RMNRemoteCfg: prevOutcome.RMNRemoteCfg,
+		RMNRemoteCfg:        prevOutcome.RMNRemoteCfg,
 	}
 
 	return outcome
@@ -273,7 +282,9 @@ func getConsensusObservation(
 	_, exists := fChains[destChain]
 	if !exists {
 		return ConsensusObservation{},
-			fmt.Errorf("no consensus value for fDestChain, destChain: %d", destChain)
+			fmt.Errorf("no consensus value for fDestChain, destChain: %d, fChainObs: %+v, fChainsConsensus: %+v",
+				destChain, aggObs.FChain, fChains,
+			)
 	}
 
 	// convert aggObs.RMNRemoteConfigs to a map of RMNRemoteConfigs

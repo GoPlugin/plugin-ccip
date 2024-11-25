@@ -7,11 +7,10 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
-
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	"github.com/goplugin/plugin-ccip/internal/libs/testhelpers"
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 )
 
 var rmnRemoteCfg = testhelpers.CreateRMNRemoteCfg()

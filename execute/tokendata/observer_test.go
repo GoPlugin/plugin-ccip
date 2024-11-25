@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	cciptypes "github.com/goplugin/plugin-common/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
 
 	"github.com/goplugin/plugin-ccip/execute/exectypes"
 	"github.com/goplugin/plugin-ccip/execute/tokendata"
 	"github.com/goplugin/plugin-ccip/internal"
+	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/pluginconfig"
 )
 
@@ -168,7 +168,7 @@ func Test_CompositeTokenDataObserver_ObserveDifferentTokens(t *testing.T) {
 			},
 		},
 		{
-			name: "mixed usdc and pli tokens",
+			name: "mixed usdc and link tokens",
 			messageObservations: exectypes.MessageObservations{
 				1: {
 					10: internal.MessageWithTokens(t, linkEthereumTokenSourcePool, usdcEthereumTokenSourcePool),
