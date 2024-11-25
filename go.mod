@@ -4,9 +4,12 @@ go 1.22.5
 
 require (
 	github.com/deckarep/golang-set/v2 v2.6.0
-	github.com/goplugin/chain-selectors v1.0.23
-	github.com/goplugin/plugin-common v0.3.0
-	github.com/goplugin/plugin-libocr v0.0.0-20241007185508-adbe57025f12
+	github.com/goplugin/chain-selectors v0.1.1//for plugin update changes
+	//github.com/goplugin/chain-selectors v1.0.23
+	github.com/goplugin/plugin-common v0.0.1//for plugin update changes
+	//github.com/goplugin/plugin-common v0.0.1
+	github.com/goplugin/plugin-libocr v0.1.1//for plugin update chages
+	//github.com/goplugin/plugin-libocr v0.0.0-20241007185508-adbe57025f12
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.27.0
