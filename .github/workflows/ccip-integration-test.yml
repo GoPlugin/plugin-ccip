@@ -1,0 +1,93 @@
+name: "Run CCIP OCR3 Integration Test"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  integration-test-ccip-ocr3:
+    env:
+      # We explicitly have this env var not be "CL_DATABASE_URL" to avoid having it be used by core related tests
+      # when they should not be using it, while still allowing us to DRY up the setup
+      DB_URL: postgresql://postgres:postgres@localhost:5432/plugin_test?sslmode=disable
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.22.5']
+    steps:
+      - name: Checkout the plugin-ccip repo
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Display Go version
+        run: go version
+      - name: Clone Plugin repo
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+        with:
+          repository: goplugin/pluginv3.0
+          ref: develop
+          path: pluginv3.0
+      - name: Get the correct commit SHA via GitHub API
+        id: get_sha
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            COMMIT_SHA=${{ github.event.pull_request.head.sha }}
+          else
+            COMMIT_SHA=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.ref }}" | jq -r .sha)
+          fi
+          echo "::set-output name=sha::$COMMIT_SHA"
+      - name: Update plugin-ccip dependency in pluginv3.0
+        run: |
+          cd $GITHUB_WORKSPACE/pluginv3.0
+          go get github.com/goplugin/plugin-ccip@${{ steps.get_sha.outputs.sha }}
+          make gomodtidy
+      - name: Setup Postgres
+        uses: ./.github/actions/setup-postgres
+      - name: Download Go vendor packages
+        run: |
+          cd $GITHUB_WORKSPACE/pluginv3.0
+          go mod download
+          cd $GITHUB_WORKSPACE/plugn_latest/integration-tests
+          go mod download
+      - name: Build binary
+        run: |
+          cd $GITHUB_WORKSPACE/pluginv3.0
+          go build -o ccip.test .
+      - name: Setup DB
+        run: |
+          cd $GITHUB_WORKSPACE/pluginv3.0
+          ./ccip.test local db preparetest
+        env:
+          CL_DATABASE_URL: ${{ env.DB_URL }}
+      - name: Run ccip ocr3 initial deploy integration test
+        run: |
+          cd $GITHUB_WORKSPACE/pluginv3.0/deployment
+          go test -v -run '^TestInitialDeploy$' -timeout 6m ./ccip/changeset
+          EXITCODE=${PIPESTATUS[0]}
+          if [ $EXITCODE -ne 0 ]; then
+            echo "Integration test failed"
+          else
+            echo "Integration test passed!"
+          fi
+          exit $EXITCODE
+        env:
+          CL_DATABASE_URL: ${{ env.DB_URL }}
+      - name: Run ccip ocr3 add chain integration test
+        run: |
+          cd $GITHUB_WORKSPACE/plugin_latet/deployment
+          go test -v -run '^TestAddChainInbound$' -timeout 6m ./ccip/
+          EXITCODE=${PIPESTATUS[0]}
+          if [ $EXITCODE -ne 0 ]; then
+            echo "Integration test failed"
+          else
+            echo "Integration test passed!"
+          fi
+          exit $EXITCODE
+        env:
+          CL_DATABASE_URL: ${{ env.DB_URL }}
