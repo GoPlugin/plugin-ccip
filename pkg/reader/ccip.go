@@ -13,12 +13,12 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
+	ocr3types "github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/types"
 	"github.com/goplugin/plugin-common/pkg/types/query"
 	"github.com/goplugin/plugin-common/pkg/types/query/primitives"
-
-	"github.com/goplugin/plugin-ccip/internal/plugincommon/consensus"
 
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	typeconv "github.com/goplugin/plugin-ccip/internal/libs/typeconv"
@@ -99,7 +99,7 @@ func (r *ccipChainReader) CommitReportsGTETimestamp(
 	}
 
 	type TokenPriceUpdate struct {
-		SourceToken cciptypes.UnknownAddress
+		SourceToken []byte
 		UsdPerToken *big.Int
 	}
 
@@ -188,9 +188,8 @@ func (r *ccipChainReader) CommitReportsGTETimestamp(
 
 		for _, tokenPriceUpdate := range ev.PriceUpdates.TokenPriceUpdates {
 			priceUpdates.TokenPriceUpdates = append(priceUpdates.TokenPriceUpdates, cciptypes.TokenPrice{
-				TokenID: cciptypes.UnknownEncodedAddress(
-					typeconv.AddressBytesToString(tokenPriceUpdate.SourceToken, uint64(r.destChain))),
-				Price: cciptypes.NewBigInt(tokenPriceUpdate.UsdPerToken),
+				TokenID: ocr3types.Account(typeconv.AddressBytesToString(tokenPriceUpdate.SourceToken, uint64(r.destChain))),
+				Price:   cciptypes.NewBigInt(tokenPriceUpdate.UsdPerToken),
 			})
 		}
 
@@ -280,56 +279,6 @@ func (r *ccipChainReader) ExecutedMessageRanges(
 	return executed, nil
 }
 
-// Temporary struct to properly deserialize cciptypes.Message before we have support for cciptypes.BigInt
-type ccipMessageTokenAmount struct {
-	SourcePoolAddress cciptypes.UnknownAddress
-	DestTokenAddress  cciptypes.UnknownAddress
-	ExtraData         cciptypes.Bytes
-	Amount            *big.Int
-	DestExecData      cciptypes.Bytes
-}
-
-func (t *ccipMessageTokenAmount) ToOnRampToken() cciptypes.RampTokenAmount {
-	return cciptypes.RampTokenAmount{
-		SourcePoolAddress: t.SourcePoolAddress,
-		DestTokenAddress:  t.DestTokenAddress,
-		ExtraData:         t.ExtraData,
-		Amount:            cciptypes.NewBigInt(t.Amount),
-		DestExecData:      t.DestExecData,
-	}
-}
-
-type ccipMessage struct {
-	Header         cciptypes.RampMessageHeader
-	Sender         cciptypes.UnknownAddress
-	Data           cciptypes.Bytes
-	Receiver       cciptypes.UnknownAddress
-	ExtraArgs      cciptypes.Bytes
-	FeeToken       cciptypes.UnknownAddress
-	FeeTokenAmount *big.Int
-	FeeValueJuels  *big.Int
-	TokenAmounts   []ccipMessageTokenAmount
-}
-
-func (m *ccipMessage) ToMessage() cciptypes.Message {
-	tk := make([]cciptypes.RampTokenAmount, len(m.TokenAmounts))
-	for i := range m.TokenAmounts {
-		tk[i] = m.TokenAmounts[i].ToOnRampToken()
-	}
-
-	return cciptypes.Message{
-		Header:         m.Header,
-		Sender:         m.Sender,
-		Data:           m.Data,
-		Receiver:       m.Receiver,
-		ExtraArgs:      m.ExtraArgs,
-		FeeToken:       m.FeeToken,
-		FeeTokenAmount: cciptypes.NewBigInt(m.FeeTokenAmount),
-		FeeValueJuels:  cciptypes.NewBigInt(m.FeeValueJuels),
-		TokenAmounts:   tk,
-	}
-}
-
 func (r *ccipChainReader) MsgsBetweenSeqNums(
 	ctx context.Context, sourceChainSelector cciptypes.ChainSelector, seqNumRange cciptypes.SeqNumRange,
 ) ([]cciptypes.Message, error) {
@@ -344,7 +293,7 @@ func (r *ccipChainReader) MsgsBetweenSeqNums(
 
 	type SendRequestedEvent struct {
 		DestChainSelector cciptypes.ChainSelector
-		Message           ccipMessage
+		Message           cciptypes.Message
 	}
 
 	seq, err := r.contractReaders[sourceChainSelector].ExtendedQueryKey(
@@ -389,7 +338,7 @@ func (r *ccipChainReader) MsgsBetweenSeqNums(
 		msg.Message.Header.OnRamp = onRampAddress
 
 		if valid {
-			msgs = append(msgs, msg.Message.ToMessage())
+			msgs = append(msgs, msg.Message)
 		}
 	}
 
@@ -502,43 +451,19 @@ func (r *ccipChainReader) Nonces(
 	return res, nil
 }
 
-func (r *ccipChainReader) GetAvailableChainsFeeComponents(ctx context.Context,
-	chains []cciptypes.ChainSelector,
+func (r *ccipChainReader) GetAvailableChainsFeeComponents(
+	ctx context.Context,
 ) map[cciptypes.ChainSelector]types.ChainFeeComponents {
 	feeComponents := make(map[cciptypes.ChainSelector]types.ChainFeeComponents, len(r.contractWriters))
-
-	for _, chain := range chains {
-		chainWriter, ok := r.contractWriters[chain]
-		if !ok {
-			r.lggr.Warnw("contract writer not found", "chain", chain)
-			continue
-		}
+	for chain, chainWriter := range r.contractWriters {
 		feeComponent, err := chainWriter.GetFeeComponents(ctx)
 		if err != nil {
-			r.lggr.Errorw("failed to get chain fee components", "chain", chain, "err", err)
+			r.lggr.Errorw("failed to get chain fee components for chain %d: %w", chain, err)
 			continue
 		}
 		feeComponents[chain] = *feeComponent
 	}
 	return feeComponents
-}
-
-func (r *ccipChainReader) GetDestChainFeeComponents(
-	ctx context.Context,
-) (types.ChainFeeComponents, error) {
-	chainWriter, ok := r.contractWriters[r.destChain]
-	if !ok {
-		r.lggr.Errorw("dest chain contract writer not found", "chain", r.destChain)
-		return types.ChainFeeComponents{}, errors.New("dest chain contract writer not found")
-	}
-
-	feeComponents, err := chainWriter.GetFeeComponents(ctx)
-	if err != nil {
-		r.lggr.Errorw("failed to get dest chain fee components", "chain", r.destChain)
-		return types.ChainFeeComponents{}, err
-	}
-
-	return *feeComponents, nil
 }
 
 func (r *ccipChainReader) GetWrappedNativeTokenPriceUSD(
@@ -593,8 +518,8 @@ func (r *ccipChainReader) GetWrappedNativeTokenPriceUSD(
 			continue
 		}
 
-		if update == nil || update.Timestamp == 0 {
-			r.lggr.Warnw("no native token price available", "chain", chain)
+		if update == nil {
+			r.lggr.Errorw("native token price is nil", "chain", chain)
 			continue
 		}
 		prices[chain] = cciptypes.NewBigInt(update.Value)
@@ -645,18 +570,10 @@ func (r *ccipChainReader) GetRMNRemoteConfig(
 		return rmntypes.RemoteConfig{}, err
 	}
 
-	// RMNRemote address stored in the offramp static config is actually the proxy contract address.
-	// Here we will get the RMNRemote address from the proxy contract by calling the RMNProxy contract.
-	proxyContractAddress, err := r.GetContractAddress(consts.ContractNameRMNRemote, destChainSelector)
+	contractAddress, err := r.GetContractAddress(consts.ContractNameRMNRemote, destChainSelector)
 	if err != nil {
-		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote proxy contract address: %w", err)
+		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote contract address: %w", err)
 	}
-
-	rmnRemoteAddress, err := r.getRMNRemoteAddress(ctx, destChainSelector, proxyContractAddress)
-	if err != nil {
-		return rmntypes.RemoteConfig{}, fmt.Errorf("get RMNRemote address: %w", err)
-	}
-	r.lggr.Debugw("got RMNRemote address", "address", rmnRemoteAddress)
 
 	// TODO: make the calls in parallel using errgroup
 	var vc versionedConfig
@@ -699,10 +616,10 @@ func (r *ccipChainReader) GetRMNRemoteConfig(
 	}
 
 	return rmntypes.RemoteConfig{
-		ContractAddress:  rmnRemoteAddress,
+		ContractAddress:  contractAddress,
 		ConfigDigest:     cciptypes.Bytes32(vc.Config.RMNHomeContractConfigDigest),
 		Signers:          signers,
-		F:                vc.Config.F,
+		MinSigners:       vc.Config.MinSigners,
 		ConfigVersion:    vc.Version,
 		RmnReportVersion: header.DigestHeader,
 	}, nil
@@ -752,7 +669,7 @@ func (r *ccipChainReader) discoverOffRampContracts(
 			&staticConfig,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("unable to lookup nonce manager and rmn proxy remote (offramp static config): %w", err)
+			return nil, fmt.Errorf("unable to lookup nonce manager and rmn remote (offramp static config): %w", err)
 		}
 		resp = resp.Append(consts.ContractNameNonceManager, chain, staticConfig.NonceManager)
 		resp = resp.Append(consts.ContractNameRMNRemote, chain, staticConfig.RmnRemote)
@@ -1127,12 +1044,13 @@ type offRampStaticChainConfig struct {
 	NonceManager       []byte                  `json:"nonceManager"`
 }
 
-// offRampDynamicChainConfig maps to DynamicConfig in OffRamp.sol
+// offRampDynamicChainConfig maps to DynamicChainConfig in OffRamp.sol
 type offRampDynamicChainConfig struct {
 	FeeQuoter                               []byte `json:"feeQuoter"`
 	PermissionLessExecutionThresholdSeconds uint32 `json:"permissionLessExecutionThresholdSeconds"`
-	IsRMNVerificationDisabled               bool   `json:"isRMNVerificationDisabled"`
-	MessageInterceptor                      []byte `json:"messageInterceptor"`
+	MaxTokenTransferGas                     uint32 `json:"maxTokenTransferGas"`
+	MaxPoolReleaseOrMintGas                 uint32 `json:"maxPoolReleaseOrMintGas"`
+	MessageValidator                        []byte `json:"messageValidator"`
 }
 
 //nolint:unused // it will be used soon // TODO: Remove nolint
@@ -1305,110 +1223,14 @@ type signer struct {
 type config struct {
 	RMNHomeContractConfigDigest []byte   `json:"rmnHomeContractConfigDigest"`
 	Signers                     []signer `json:"signers"`
-	F                           uint64   `json:"f"` // previously: MinSigners
+	MinSigners                  uint64   `json:"minSigners"`
 }
 
-// versionedConfig is used to parse the response from the RMNRemote contract's getVersionedConfig method.
+// versionnedConfig is used to parse the response from the RMNRemote contract's getVersionedConfig method.
 // See: https://github.com/goplugin/ccip/blob/ccip-develop/contracts/src/v0.8/ccip/rmn/RMNRemote.sol#L167-L169
 type versionedConfig struct {
 	Version uint32 `json:"version"`
 	Config  config `json:"config"`
-}
-
-// getARM gets the RMN remote address from the RMN proxy address.
-// See: https://github.com/goplugin/pluginv3.0/blob/3c7817c566c5d0aa14519c679fa85b227ac97cc5/contracts/src/v0.8/ccip/rmn/ARMProxy.sol#L40-L44
-//
-//nolint:lll
-func (r *ccipChainReader) getRMNRemoteAddress(
-	ctx context.Context,
-	chain cciptypes.ChainSelector,
-	rmnRemoteProxyAddress []byte) ([]byte, error) {
-	_, err := bindExtendedReaderContract(ctx, r.lggr, r.contractReaders, chain, consts.ContractNameRMNProxy, rmnRemoteProxyAddress)
-	if err != nil {
-		return nil, fmt.Errorf("bind RMN proxy contract: %w", err)
-	}
-
-	// get the RMN remote address from the proxy
-	var rmnRemoteAddress []byte
-	err = r.getDestinationData(
-		ctx,
-		chain,
-		consts.ContractNameRMNProxy,
-		consts.MethodNameGetARM,
-		&rmnRemoteAddress,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("unable to lookup RMN remote address (RMN proxy): %w", err)
-	}
-
-	return rmnRemoteAddress, nil
-}
-
-// Get the DestChainConfig from the FeeQuoter contract on the given chain.
-func (r *ccipChainReader) getFeeQuoterDestChainConfig(
-	ctx context.Context,
-	chainSelector cciptypes.ChainSelector,
-) (cciptypes.FeeQuoterDestChainConfig, error) {
-	if err := validateExtendedReaderExistence(r.contractReaders, chainSelector); err != nil {
-		return cciptypes.FeeQuoterDestChainConfig{}, err
-	}
-
-	var destChainConfig cciptypes.FeeQuoterDestChainConfig
-	srcReader := r.contractReaders[chainSelector]
-	err := srcReader.ExtendedGetLatestValue(
-		ctx,
-		consts.ContractNameFeeQuoter,
-		consts.MethodNameGetDestChainConfig,
-		primitives.Unconfirmed,
-		map[string]any{
-			"destChainSelector": r.destChain,
-		},
-		&destChainConfig,
-	)
-
-	if err != nil {
-		return cciptypes.FeeQuoterDestChainConfig{}, fmt.Errorf("failed to get dest chain config: %w", err)
-	}
-
-	return destChainConfig, nil
-}
-
-// GetMedianDataAvailabilityGasConfig returns the median of the DataAvailabilityGasConfig values from all FeeQuoters
-// DA data lives in the FeeQuoter contract on the source chain. To get the config of the destination chain, we need to
-// read the FeeQuoter contract on the source chain. As nodes are not required to have all chains configured, we need to
-// read all FeeQuoter contracts to get the median.
-func (r *ccipChainReader) GetMedianDataAvailabilityGasConfig(
-	ctx context.Context,
-) (cciptypes.DataAvailabilityGasConfig, error) {
-	overheadGasValues := make([]uint32, 0)
-	gasPerByteValues := make([]uint16, 0)
-	multiplierBpsValues := make([]uint16, 0)
-
-	// TODO: pay attention to performance here, as we are looping through all chains
-	for chain := range r.contractReaders {
-		config, err := r.getFeeQuoterDestChainConfig(ctx, chain)
-		if err != nil {
-			continue
-		}
-		if config.IsEnabled && config.HasNonEmptyDAGasParams() {
-			overheadGasValues = append(overheadGasValues, config.DestDataAvailabilityOverheadGas)
-			gasPerByteValues = append(gasPerByteValues, config.DestGasPerDataAvailabilityByte)
-			multiplierBpsValues = append(multiplierBpsValues, config.DestDataAvailabilityMultiplierBps)
-		}
-	}
-
-	// Calculate medians
-	medianOverheadGas := consensus.Median(overheadGasValues, func(a, b uint32) bool { return a < b })
-	medianGasPerByte := consensus.Median(gasPerByteValues, func(a, b uint16) bool { return a < b })
-	medianMultiplierBps := consensus.Median(multiplierBpsValues, func(a, b uint16) bool { return a < b })
-
-	daConfig := cciptypes.DataAvailabilityGasConfig{
-		DestDataAvailabilityOverheadGas:   medianOverheadGas,
-		DestGasPerDataAvailabilityByte:    medianGasPerByte,
-		DestDataAvailabilityMultiplierBps: medianMultiplierBps,
-	}
-
-	return daConfig, nil
 }
 
 // Interface compliance check

@@ -5,6 +5,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+
 	"github.com/goplugin/plugin-ccip/internal/libs/mathslib"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon/consensus"
@@ -39,7 +41,7 @@ func (p *processor) getConsensusObservation(
 		p.lggr,
 		"FeedTokenPrices",
 		aggObs.FeedTokenPrices,
-		consensus.MakeConstantThreshold[cciptypes.UnknownEncodedAddress](consensus.TwoFPlus1(fFeedChain)),
+		consensus.MakeConstantThreshold[types.Account](consensus.TwoFPlus1(fFeedChain)),
 		func(vals []cciptypes.TokenPrice) cciptypes.TokenPrice {
 			return consensus.Median(vals, consensus.TokenPriceComparator)
 		},
@@ -49,7 +51,7 @@ func (p *processor) getConsensusObservation(
 		p.lggr,
 		"FeeQuoterUpdates",
 		aggObs.FeeQuoterTokenUpdates,
-		consensus.MakeConstantThreshold[cciptypes.UnknownEncodedAddress](consensus.TwoFPlus1(fDestChain)),
+		consensus.MakeConstantThreshold[types.Account](consensus.TwoFPlus1(fDestChain)),
 		// each key will have one object with the median for timestamps as timestamp value
 		// and the median prices as price value
 		consensus.TimestampedBigAggregator,
@@ -116,8 +118,8 @@ func (p *processor) selectTokensForUpdate(
 // aggregateObservations takes a list of observations and produces an AggregateObservation
 func aggregateObservations(aos []plugincommon.AttributedObservation[Observation]) AggregateObservation {
 	aggObs := AggregateObservation{
-		FeedTokenPrices:       make(map[cciptypes.UnknownEncodedAddress][]cciptypes.TokenPrice),
-		FeeQuoterTokenUpdates: make(map[cciptypes.UnknownEncodedAddress][]plugintypes.TimestampedBig),
+		FeedTokenPrices:       make(map[types.Account][]cciptypes.TokenPrice),
+		FeeQuoterTokenUpdates: make(map[types.Account][]plugintypes.TimestampedBig),
 		FChain:                make(map[cciptypes.ChainSelector][]int),
 		Timestamps:            []time.Time{},
 	}

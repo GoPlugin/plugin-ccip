@@ -12,7 +12,7 @@ import (
 func MessageWithTokens(t *testing.T, tokenPoolAddr ...string) cciptypes.Message {
 	onRampTokens := make([]cciptypes.RampTokenAmount, len(tokenPoolAddr))
 	for i, addr := range tokenPoolAddr {
-		b, err := cciptypes.NewUnknownAddressFromHex(addr)
+		b, err := cciptypes.NewBytesFromString(addr)
 		require.NoError(t, err)
 		onRampTokens[i] = cciptypes.RampTokenAmount{
 			SourcePoolAddress: b,

@@ -15,7 +15,6 @@ import (
 
 	"github.com/goplugin/plugin-libocr/commontypes"
 	"github.com/goplugin/plugin-libocr/ragep2p/types"
-	ragep2ptypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 	"github.com/goplugin/plugin-common/pkg/utils/tests"
@@ -624,15 +623,13 @@ func Test_Processor_initializeRMNController(t *testing.T) {
 		{ID: 1, PeerID: types.PeerID{1, 2, 3}},
 		{ID: 10, PeerID: types.PeerID{1, 2, 31}},
 	}
-	oracleIDs := []ragep2ptypes.PeerID{}
 	rmnHomeReader.EXPECT().GetRMNNodesInfo(cfg.ConfigDigest).Return(rmnNodes, nil)
 
 	rmnController.EXPECT().InitConnection(
 		ctx,
 		cciptypes.Bytes32(p.reportingCfg.ConfigDigest),
 		cfg.ConfigDigest,
-		oracleIDs,
-		rmnNodes,
+		[]string{rmnNodes[0].PeerID.String(), rmnNodes[1].PeerID.String()},
 	).Return(nil)
 
 	err = p.initializeRMNController(ctx, Outcome{RMNRemoteCfg: cfg})
@@ -667,6 +664,6 @@ func (a signatureVerifierAlwaysTrue) Verify(_ ed25519.PublicKey, _, _ []byte) bo
 }
 
 func (a signatureVerifierAlwaysTrue) VerifyReportSignatures(
-	_ context.Context, _ []cciptypes.RMNECDSASignature, _ cciptypes.RMNReport, _ []cciptypes.UnknownAddress) error {
+	_ context.Context, _ []cciptypes.RMNECDSASignature, _ cciptypes.RMNReport, _ []cciptypes.Bytes) error {
 	return nil
 }

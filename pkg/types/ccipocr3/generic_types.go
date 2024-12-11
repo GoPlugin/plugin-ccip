@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 )
 
 type TokenPrice struct {
-	TokenID UnknownEncodedAddress `json:"tokenID"`
-	Price   BigInt                `json:"price"`
+	TokenID types.Account `json:"tokenID"`
+	Price   BigInt        `json:"price"`
 }
 
-func NewTokenPrice(tokenID UnknownEncodedAddress, price *big.Int) TokenPrice {
+func NewTokenPrice(tokenID types.Account, price *big.Int) TokenPrice {
 	return TokenPrice{
 		TokenID: tokenID,
 		Price:   BigInt{price},
@@ -111,18 +113,18 @@ type Message struct {
 	Header RampMessageHeader `json:"header"`
 	// Sender address on the source chain.
 	// i.e if the source chain is EVM, this is an abi-encoded EVM address.
-	Sender UnknownAddress `json:"sender"`
+	Sender Bytes `json:"sender"`
 	// Data is the arbitrary data payload supplied by the message sender.
 	Data Bytes `json:"data"`
 	// Receiver is the receiver address on the destination chain.
 	// This is encoded in the destination chain family specific encoding.
 	// i.e if the destination is EVM, this is abi.encode(receiver).
-	Receiver UnknownAddress `json:"receiver"`
+	Receiver Bytes `json:"receiver"`
 	// ExtraArgs is destination-chain specific extra args, such as the gasLimit for EVM chains.
 	ExtraArgs Bytes `json:"extraArgs"`
 	// FeeToken is the fee token address.
 	// i.e if the source chain is EVM, len(FeeToken) == 20 (i.e, is not abi-encoded).
-	FeeToken UnknownAddress `json:"feeToken"`
+	FeeToken Bytes `json:"feeToken"`
 	// FeeTokenAmount is the amount of fee tokens paid.
 	FeeTokenAmount BigInt `json:"feeTokenAmount"`
 	// FeeValueJuels is the fee amount in Juels
@@ -159,7 +161,7 @@ type RampMessageHeader struct {
 
 	// OnRamp is the address of the onramp that sent the message.
 	// NOTE: This is populated by the ccip reader. Not emitted explicitly onchain.
-	OnRamp UnknownAddress `json:"onRamp"`
+	OnRamp Bytes `json:"onRamp"`
 }
 
 // RampTokenAmount represents the family-agnostic token amounts used for both OnRamp & OffRamp messages.
@@ -167,11 +169,11 @@ type RampTokenAmount struct {
 	// SourcePoolAddress is the source pool address, encoded according to source family native encoding scheme.
 	// This value is trusted as it was obtained through the onRamp. It can be relied upon by the destination
 	// pool to validate the source pool.
-	SourcePoolAddress UnknownAddress `json:"sourcePoolAddress"`
+	SourcePoolAddress Bytes `json:"sourcePoolAddress"`
 
 	// DestTokenAddress is the address of the destination token, abi encoded in the case of EVM chains.
 	// This value is UNTRUSTED as any pool owner can return whatever value they want.
-	DestTokenAddress UnknownAddress `json:"destTokenAddress"`
+	DestTokenAddress Bytes `json:"destTokenAddress"`
 
 	// ExtraData is optional pool data to be transferred to the destination chain. Be default this is capped at
 	// CCIP_LOCK_OR_BURN_V1_RET_BYTES bytes. If more data is required, the TokenTransferFeeConfig.destBytesOverhead

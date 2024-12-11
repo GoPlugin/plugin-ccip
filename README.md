@@ -1,22 +1,12 @@
-<div style="text-align:center" align="center">
-    <a href="https://goplugin.co" target="_blank">
-        <img src="https://raw.githubusercontent.com/goplugin/pluginv3.0/develop/docs/logo-plugin-blue.svg" width="225" alt="plugin logo">
-    </a>
-
-[![License](https://img.shields.io/static/v1?label=license&message=BUSL%201.1&color=green)](https://github.com/goplugin/plugin-ccip/blob/master/LICENSE)
-[![Code Documentation](https://img.shields.io/static/v1?label=code-docs&message=latest&color=blue)](docs/ccip_protocol.md)
-</div>
-
 # plugin-ccip
 
-This repo contains [OCR3 plugins][ocr3] for CCIP. See the [documentation](docs/ccip_protocol.md) for more.
+This is the repo that implements the OCR3 CCIP plugins. This includes the commit and execution plugins.
 
 ## Getting Started
 
 ### Go Version
 
-The version of go is specified in the project's [go.mod](go.mod) file.
-You can install Go from their [installation page](https://go.dev/doc/install).
+This repo uses Go 1.22. You can install Go from their [installation page](https://go.dev/doc/install).
 
 ### Running the Linter
 
@@ -60,5 +50,3 @@ the `ccip-develop` branch of plugin-ccip. You can do this by:
 5. Go back to your plugin-ccip PR and re-run the integration test workflow.
 6. Once the integration test passes, merge your plugin-ccip PR into `ccip-develop`, however do not delete the branch on the remote.
 7. Create a new PR in ccip that points to the newly merged commit in the `ccip-develop` tree and merge that.
-
-[ocr3]: https://github.com/goplugin/plugin-libocr/blob/master/offchainreporting2plus/ocr3types/plugin.go#L108

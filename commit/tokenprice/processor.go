@@ -6,9 +6,10 @@ import (
 
 	mapset "github.com/deckarep/golang-set/v2"
 
-	"github.com/goplugin/plugin-libocr/commontypes"
-
 	"github.com/goplugin/plugin-common/pkg/logger"
+
+	"github.com/goplugin/plugin-libocr/commontypes"
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
 
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
 	"github.com/goplugin/plugin-ccip/internal/reader"
@@ -77,13 +78,13 @@ func (p *processor) Outcome(
 
 	consensusObservation, err := p.getConsensusObservation(aos)
 	if err != nil {
-		return Outcome{}, fmt.Errorf("get consensus observation: %w", err)
+		return Outcome{}, err
 	}
 
 	tokenPriceOutcome := p.selectTokensForUpdate(consensusObservation)
 	p.lggr.Infow(
 		"outcome token prices",
-		"tokenPrices", tokenPriceOutcome,
+		"token prices", tokenPriceOutcome,
 	)
 	return Outcome{
 		TokenPrices: tokenPriceOutcome,
@@ -95,7 +96,7 @@ func (p *processor) Close() error {
 }
 
 func validateObservedTokenPrices(tokenPrices []cciptypes.TokenPrice) error {
-	tokensWithPrice := mapset.NewSet[cciptypes.UnknownEncodedAddress]()
+	tokensWithPrice := mapset.NewSet[types.Account]()
 	for _, t := range tokenPrices {
 		if tokensWithPrice.Contains(t.TokenID) {
 			return fmt.Errorf("duplicate token price for token: %s", t.TokenID)
@@ -103,7 +104,7 @@ func validateObservedTokenPrices(tokenPrices []cciptypes.TokenPrice) error {
 		tokensWithPrice.Add(t.TokenID)
 
 		if t.Price.IsEmpty() {
-			return fmt.Errorf("token price of token %v must not be empty", t.TokenID)
+			return fmt.Errorf("token price must not be empty")
 		}
 	}
 	return nil

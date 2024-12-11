@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+
 	"github.com/goplugin/plugin-common/pkg/logger"
 
 	"github.com/goplugin/plugin-ccip/internal/plugintypes"
@@ -32,7 +34,7 @@ func Test_Observation(t *testing.T) {
 		cciptypes.NewTokenPrice(tokenA, bi100),
 		cciptypes.NewTokenPrice(tokenB, bi200),
 	}
-	feeQuoterTokenUpdates := map[cciptypes.UnknownEncodedAddress]plugintypes.TimestampedBig{
+	feeQuoterTokenUpdates := map[types.Account]plugintypes.TimestampedBig{
 		tokenA: plugintypes.NewTimestampedBig(bi100.Int64(), timestamp),
 		tokenB: plugintypes.NewTimestampedBig(bi200.Int64(), timestamp),
 	}
@@ -53,11 +55,11 @@ func Test_Observation(t *testing.T) {
 				chainSupport.EXPECT().SupportsDestChain(mock.Anything).Return(true, nil)
 
 				tokenPriceReader := readerpkg_mock.NewMockPriceReader(t)
-				tokenPriceReader.EXPECT().GetFeedPricesUSD(mock.Anything, []cciptypes.UnknownEncodedAddress{tokenA, tokenB}).
+				tokenPriceReader.EXPECT().GetFeedPricesUSD(mock.Anything, []types.Account{tokenA, tokenB}).
 					Return([]*big.Int{bi100, bi200}, nil)
 
 				tokenPriceReader.EXPECT().GetFeeQuoterTokenUpdates(mock.Anything, mock.Anything, mock.Anything).Return(
-					map[cciptypes.UnknownEncodedAddress]plugintypes.TimestampedBig{
+					map[types.Account]plugintypes.TimestampedBig{
 						tokenA: plugintypes.NewTimestampedBig(bi100.Int64(), timestamp),
 						tokenB: plugintypes.NewTimestampedBig(bi200.Int64(), timestamp),
 					},
@@ -133,7 +135,7 @@ func Test_Observation(t *testing.T) {
 }
 
 var defaultCfg = pluginconfig.CommitOffchainConfig{
-	TokenInfo: map[cciptypes.UnknownEncodedAddress]pluginconfig.TokenInfo{
+	TokenInfo: map[types.Account]pluginconfig.TokenInfo{
 		tokenA: {
 			Decimals:          18,
 			AggregatorAddress: "0x1111111111111111111111Ff18C45Df59775Fbb2",

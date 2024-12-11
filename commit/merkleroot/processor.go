@@ -1,12 +1,14 @@
 package merkleroot
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/goplugin/plugin-libocr/commontypes"
 	"github.com/goplugin/plugin-libocr/offchainreporting2plus/ocr3types"
 	libocrtypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	"github.com/goplugin/plugin-common/pkg/logger"
-	"github.com/goplugin/plugin-common/pkg/services"
 
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
@@ -83,5 +85,23 @@ func (p *Processor) Close() error {
 		return nil
 	}
 
-	return services.CloseAll(p.rmnController, p.rmnHomeReader)
+	errs := make([]error, 0)
+
+	// close rmn controller
+	if p.rmnController != nil {
+		if err := p.rmnController.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close RMN controller: %w", err))
+			p.lggr.Errorw("Failed to close RMN controller", "err", err)
+		}
+	}
+
+	// close rmn home reader
+	if p.rmnHomeReader != nil {
+		if err := p.rmnHomeReader.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close RMNHome reader: %w", err))
+			p.lggr.Errorw("Failed to close RMNHome reader", "err", err)
+		}
+	}
+
+	return errors.Join(errs...)
 }

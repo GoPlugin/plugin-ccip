@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	ocr2types "github.com/goplugin/plugin-libocr/offchainreporting2plus/types"
+
 	commontypes "github.com/goplugin/plugin-common/pkg/types"
 	"github.com/goplugin/plugin-common/pkg/types/query/primitives"
 
@@ -22,11 +24,11 @@ import (
 )
 
 const (
-	ArbAddr           = cciptypes.UnknownEncodedAddress("0xa100000000000000000000000000000000000000")
-	ArbAggregatorAddr = cciptypes.UnknownEncodedAddress("0xa2000000000000000000000000000000000000000")
+	ArbAddr           = ocr2types.Account("0xa100000000000000000000000000000000000000")
+	ArbAggregatorAddr = ocr2types.Account("0xa2000000000000000000000000000000000000000")
 
-	EthAddr           = cciptypes.UnknownEncodedAddress("0xe100000000000000000000000000000000000000")
-	EthAggregatorAddr = cciptypes.UnknownEncodedAddress("0xe200000000000000000000000000000000000000")
+	EthAddr           = ocr2types.Account("0xe100000000000000000000000000000000000000")
+	EthAggregatorAddr = ocr2types.Account("0xe200000000000000000000000000000000000000")
 )
 
 var (
@@ -35,12 +37,12 @@ var (
 	Decimals18 = uint8(18)
 
 	ArbInfo = pluginconfig.TokenInfo{
-		AggregatorAddress: ArbAggregatorAddr,
+		AggregatorAddress: string(ArbAggregatorAddr),
 		DeviationPPB:      cciptypes.NewBigInt(big.NewInt(1e5)),
 		Decimals:          Decimals18,
 	}
 	EthInfo = pluginconfig.TokenInfo{
-		AggregatorAddress: EthAggregatorAddr,
+		AggregatorAddress: string(EthAggregatorAddr),
 		DeviationPPB:      cciptypes.NewBigInt(big.NewInt(1e5)),
 		Decimals:          Decimals18,
 	}
@@ -49,41 +51,41 @@ var (
 func TestOnchainTokenPricesReader_GetTokenPricesUSD(t *testing.T) {
 	testCases := []struct {
 		name          string
-		inputTokens   []cciptypes.UnknownEncodedAddress
-		tokenInfo     map[cciptypes.UnknownEncodedAddress]pluginconfig.TokenInfo
-		mockPrices    map[cciptypes.UnknownEncodedAddress]*big.Int
+		inputTokens   []ocr2types.Account
+		tokenInfo     map[ocr2types.Account]pluginconfig.TokenInfo
+		mockPrices    map[ocr2types.Account]*big.Int
 		want          []*big.Int
-		errorAccounts []cciptypes.UnknownEncodedAddress
+		errorAccounts []ocr2types.Account
 		wantErr       bool
 	}{
 		{
 			name: "On-chain one price",
-			tokenInfo: map[cciptypes.UnknownEncodedAddress]pluginconfig.TokenInfo{
+			tokenInfo: map[ocr2types.Account]pluginconfig.TokenInfo{
 				ArbAddr: ArbInfo,
 			},
-			inputTokens: []cciptypes.UnknownEncodedAddress{ArbAddr},
-			mockPrices:  map[cciptypes.UnknownEncodedAddress]*big.Int{ArbAddr: ArbPrice},
+			inputTokens: []ocr2types.Account{ArbAddr},
+			mockPrices:  map[ocr2types.Account]*big.Int{ArbAddr: ArbPrice},
 			want:        []*big.Int{ArbPrice},
 		},
 		{
 			name: "On-chain multiple prices",
-			tokenInfo: map[cciptypes.UnknownEncodedAddress]pluginconfig.TokenInfo{
+			tokenInfo: map[ocr2types.Account]pluginconfig.TokenInfo{
 				ArbAddr: ArbInfo,
 				EthAddr: EthInfo,
 			},
-			inputTokens: []cciptypes.UnknownEncodedAddress{ArbAddr, EthAddr},
-			mockPrices:  map[cciptypes.UnknownEncodedAddress]*big.Int{ArbAddr: ArbPrice, EthAddr: EthPrice},
+			inputTokens: []ocr2types.Account{ArbAddr, EthAddr},
+			mockPrices:  map[ocr2types.Account]*big.Int{ArbAddr: ArbPrice, EthAddr: EthPrice},
 			want:        []*big.Int{ArbPrice, EthPrice},
 		},
 		{
 			name: "Missing price should error",
-			tokenInfo: map[cciptypes.UnknownEncodedAddress]pluginconfig.TokenInfo{
+			tokenInfo: map[ocr2types.Account]pluginconfig.TokenInfo{
 				ArbAddr: ArbInfo,
 				EthAddr: EthInfo,
 			},
-			inputTokens:   []cciptypes.UnknownEncodedAddress{ArbAddr, EthAddr},
-			mockPrices:    map[cciptypes.UnknownEncodedAddress]*big.Int{ArbAddr: ArbPrice},
-			errorAccounts: []cciptypes.UnknownEncodedAddress{EthAddr},
+			inputTokens:   []ocr2types.Account{ArbAddr, EthAddr},
+			mockPrices:    map[ocr2types.Account]*big.Int{ArbAddr: ArbPrice},
+			errorAccounts: []ocr2types.Account{EthAddr},
 			want:          nil,
 			wantErr:       true,
 		},
@@ -155,16 +157,16 @@ func TestPriceService_calculateUsdPer1e18TokenAmount(t *testing.T) {
 
 func createMockReader(
 	t *testing.T,
-	mockPrices map[cciptypes.UnknownEncodedAddress]*big.Int,
-	errorAccounts []cciptypes.UnknownEncodedAddress,
-	tokenInfo map[cciptypes.UnknownEncodedAddress]pluginconfig.TokenInfo,
+	mockPrices map[ocr2types.Account]*big.Int,
+	errorAccounts []ocr2types.Account,
+	tokenInfo map[ocr2types.Account]pluginconfig.TokenInfo,
 ) *readermock.MockContractReaderFacade {
 	reader := readermock.NewMockContractReaderFacade(t)
 
 	for token, price := range mockPrices {
 		info := tokenInfo[token]
 		boundContract := commontypes.BoundContract{
-			Address: string(info.AggregatorAddress),
+			Address: info.AggregatorAddress,
 			Name:    consts.ContractNamePriceAggregator,
 		}
 
@@ -195,7 +197,7 @@ func createMockReader(
 	for _, account := range errorAccounts {
 		info := tokenInfo[account]
 		boundContract := commontypes.BoundContract{
-			Address: string(info.AggregatorAddress),
+			Address: info.AggregatorAddress,
 			Name:    consts.ContractNamePriceAggregator,
 		}
 		reader.On("GetLatestValue",

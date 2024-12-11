@@ -1,6 +1,6 @@
 # Plugin Components
 
-* shared types and interfaces - [plugin-common, ccipocr3](https://github.com/goplugin/plugin-ccip/tree/main/pkg/types/ccipocr3)
+* shared types and interfaces - [plugin-common, ccipocr3](https://github.com/goplugin/plugin-common/tree/main/pkg/types/ccipocr3)
 * [OCR Plugins](https://github.com/goplugin/plugin-ccip)
   * [commit](https://github.com/goplugin/plugin-ccip/tree/main/commit)
   * [execute](https://github.com/goplugin/plugin-ccip/tree/main/execute)

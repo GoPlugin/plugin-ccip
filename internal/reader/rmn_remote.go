@@ -7,7 +7,7 @@ import (
 )
 
 type RMNRemote interface {
-	GetF() uint64
+	GetMinSigners() uint64
 	GetSignersInfo() []rmntypes.RemoteSignerInfo
 	GetRmnReportVersion() string
 	GetRmnRemoteContractAddress() string
@@ -24,7 +24,7 @@ func NewRMNRemotePoller() RMNRemote {
 	}
 }
 
-func (r *RmnRemotePoller) GetF() uint64 {
+func (r *RmnRemotePoller) GetMinSigners() uint64 {
 	panic("implement me")
 }
 

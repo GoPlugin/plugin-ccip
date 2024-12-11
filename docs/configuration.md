@@ -11,7 +11,7 @@ run the system.
 
 Outline of the different locations where configuration is stored.
 
-### plugin Node Job Specification
+### Plugin Node Job Specification
 
 The Job Specification (jobspec) is per-node configuration. Updating this
 requires coordination with node operators, so configurations are kept to a

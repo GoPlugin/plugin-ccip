@@ -29,8 +29,6 @@ import (
 	"github.com/goplugin/plugin-ccip/pkg/consts"
 	readerpkg "github.com/goplugin/plugin-ccip/pkg/reader"
 	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
-
-	ragep2ptypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 )
 
 func (w *Processor) ObservationQuorum(
@@ -88,18 +86,19 @@ func (w *Processor) initializeRMNController(ctx context.Context, prevOutcome Out
 		return fmt.Errorf("failed to get RMN nodes info: %w", err)
 	}
 
-	oraclePeerIDs := make([]ragep2ptypes.PeerID, 0, len(w.oracleIDToP2pID))
+	peerIDs := make([]string, 0, len(rmnNodesInfo))
+	for _, node := range rmnNodesInfo {
+		peerIDs = append(peerIDs, node.PeerID.String())
+	}
 	for _, p2pID := range w.oracleIDToP2pID {
-		w.lggr.Infow("Adding oracle node to peerIDs", "p2pID", p2pID.String())
-		oraclePeerIDs = append(oraclePeerIDs, p2pID)
+		peerIDs = append(peerIDs, p2pID.String())
 	}
 
 	if err := w.rmnController.InitConnection(
 		ctx,
 		cciptypes.Bytes32(w.reportingCfg.ConfigDigest),
 		prevOutcome.RMNRemoteCfg.ConfigDigest,
-		oraclePeerIDs,
-		rmnNodesInfo,
+		peerIDs,
 	); err != nil {
 		return fmt.Errorf("failed to init connection to RMN: %w", err)
 	}
@@ -147,7 +146,7 @@ func (w *Processor) verifyQuery(ctx context.Context, prevOutcome Outcome, q Quer
 		return fmt.Errorf("RMN remote config is not provided in the previous outcome")
 	}
 
-	signerAddresses := make([]cciptypes.UnknownAddress, 0, len(sigs))
+	signerAddresses := make([]cciptypes.Bytes, 0, len(sigs))
 	for _, rmnNode := range rmnRemoteCfg.Signers {
 		signerAddresses = append(signerAddresses, rmnNode.OnchainPublicKey)
 	}
@@ -368,7 +367,6 @@ func (o ObserverImpl) ObserveMerkleRoots(
 	rootsMu := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 	for _, chainRange := range ranges {
-		chainRange := chainRange
 		if supportedChains.Contains(chainRange.ChainSel) {
 			wg.Add(1)
 			go func() {
@@ -443,12 +441,9 @@ func (o ObserverImpl) computeMerkleRoot(ctx context.Context, msgs []cciptypes.Me
 		return [32]byte{}, fmt.Errorf("failed to construct merkle tree from %d leaves: %w", len(hashes), err)
 	}
 
-	hashesStr := make([]string, len(hashes))
-	for i, h := range hashes {
-		hashesStr[i] = cciptypes.Bytes32(h).String()
-	}
 	root := tree.Root()
-	o.lggr.Infow("Computed merkle root", "hashes", hashesStr, "root", cciptypes.Bytes32(root).String())
+	o.lggr.Infow("computeMerkleRoot: Computed merkle root", "root", cciptypes.Bytes32(root).String())
+
 	return root, nil
 }
 

@@ -2,6 +2,9 @@ with-expecter: true
 filename: "{{.InterfaceName | snakecase}}.go"
 dir: mocks/{{ replaceAll .InterfaceDirRelative "internal" "internal_" }}
 packages:
+    github.com/goplugin/plugin-ccip/execute/internal/gen:
+        interfaces:
+            ExecutePluginCodec:
     github.com/goplugin/plugin-ccip/commit/merkleroot:
         interfaces:
             Observer:
@@ -17,10 +20,9 @@ packages:
     github.com/goplugin/plugin-ccip/commit/merkleroot/rmn:
         interfaces:
             Controller:
+            PeerGroup:
+            PeerGroupFactory:
             Stream:
-    github.com/goplugin/plugin-ccip/execute/internal/gas:
-        interfaces:
-            EstimateProvider:
     github.com/goplugin/plugin-ccip/pkg/reader:
         interfaces:
             CCIPReader:
@@ -30,14 +32,3 @@ packages:
         interfaces:
             Extended:
             ContractReaderFacade:
-    github.com/goplugin/plugin-ccip/pkg/types/ccipocr3:
-        interfaces:
-            ExecutePluginCodec:
-    github.com/goplugin/plugin-libocr/networking:
-        interfaces:
-            PeerGroupFactory:
-                config:
-                    dir: mocks/libocr_networking/
-            PeerGroup:
-                config:
-                    dir: mocks/libocr_networking/

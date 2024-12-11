@@ -3,6 +3,7 @@ package commit
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/goplugin/plugin-libocr/commontypes"
@@ -91,7 +92,7 @@ func NewPlugin(
 	)
 
 	rmnController := rmn.NewController(
-		logger.Named(lggr, "RMNController"),
+		lggr,
 		rmnCrypto,
 		offchainCfg.SignObservationPrefix,
 		rmnPeerClient,
@@ -103,7 +104,7 @@ func NewPlugin(
 	merkleRootProcessor := merkleroot.NewProcessor(
 		oracleID,
 		oracleIDToP2pID,
-		logger.Named(lggr, "MerkleRootProcessor"),
+		lggr,
 		offchainCfg,
 		destChain,
 		homeChain,
@@ -138,7 +139,6 @@ func NewPlugin(
 
 	chainFeeProcessr := chainfee.NewProcessor(
 		lggr,
-		oracleID,
 		destChain,
 		homeChain,
 		ccipReader,
@@ -378,12 +378,12 @@ func (p *Plugin) Outcome(
 }
 
 func (p *Plugin) Close() error {
-	return services.CloseAll(
+	return services.CloseAll([]io.Closer{
 		p.merkleRootProcessor,
 		p.tokenPriceProcessor,
 		p.chainFeeProcessor,
 		p.discoveryProcessor,
-	)
+	}...)
 }
 
 func (p *Plugin) decodeOutcome(outcome ocr3types.Outcome) Outcome {

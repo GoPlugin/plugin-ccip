@@ -135,12 +135,11 @@ func (p PluginFactory) NewReportingPlugin(
 		return nil, ocr3types.ReportingPluginInfo{}, fmt.Errorf("failed to create token data observer: %w", err)
 	}
 
-	costlyMessageObserver := exectypes.NewCostlyMessageObserverWithDefaults(
+	costlyMessageObserver := exectypes.NewCostlyMessageObserver(
 		p.lggr,
-		true,
+		false, // TODO: enable
 		ccipReader,
 		offchainConfig.RelativeBoostPerWaitHour,
-		p.estimateProvider,
 	)
 
 	return NewPlugin(

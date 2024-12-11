@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	chainsel "github.com/goplugin/chain-selectors"
+
 	ragep2ptypes "github.com/goplugin/plugin-libocr/ragep2p/types"
 
 	readerpkg_mock "github.com/goplugin/plugin-ccip/mocks/pkg/reader"
@@ -52,7 +52,7 @@ type testSetup struct {
 	updateRequests []*rmnpb.FixedDestLaneUpdateRequest
 	rmnHomeMock    *readerpkg_mock.MockRMNHome
 	remoteRMNCfg   rmntypes.RemoteConfig
-	homeF          int
+	minObservers   int
 	rmnNodes       []rmntypes.HomeNodeInfo
 }
 
@@ -64,12 +64,12 @@ func Test_selectRoots(t *testing.T) {
 	testCases := []struct {
 		name         string
 		observations []rmnSignedObservationWithMeta
-		homeF        map[cciptypes.ChainSelector]int
+		minObservers map[cciptypes.ChainSelector]int
 		expErr       bool
 		expRoots     map[cciptypes.ChainSelector]cciptypes.Bytes32
 	}{
 		{
-			name: "happy path F+1 observations",
+			name: "happy path",
 			observations: []rmnSignedObservationWithMeta{
 				{
 					SignedObservation: &rmnpb.SignedObservation{
@@ -83,42 +83,11 @@ func Test_selectRoots(t *testing.T) {
 						},
 					},
 				},
-				{
-					SignedObservation: &rmnpb.SignedObservation{
-						Observation: &rmnpb.Observation{
-							FixedDestLaneUpdates: []*rmnpb.FixedDestLaneUpdate{
-								{
-									LaneSource: &rmnpb.LaneSource{SourceChainSelector: uint64(chainS1)},
-									Root:       root1[:],
-								},
-							},
-						},
-					},
-				},
 			},
-			homeF: map[cciptypes.ChainSelector]int{chainS1: 1},
+			minObservers: map[cciptypes.ChainSelector]int{chainS1: 1},
 			expRoots: map[cciptypes.ChainSelector]cciptypes.Bytes32{
 				chainS1: root1,
 			},
-		},
-		{
-			name: "F observations instead of minimum F+1",
-			observations: []rmnSignedObservationWithMeta{
-				{
-					SignedObservation: &rmnpb.SignedObservation{
-						Observation: &rmnpb.Observation{
-							FixedDestLaneUpdates: []*rmnpb.FixedDestLaneUpdate{
-								{
-									LaneSource: &rmnpb.LaneSource{SourceChainSelector: uint64(chainS1)},
-									Root:       root1[:],
-								},
-							},
-						},
-					},
-				},
-			},
-			homeF:  map[cciptypes.ChainSelector]int{chainS1: 1},
-			expErr: true,
 		},
 		{
 			name: "zero valid roots",
@@ -136,8 +105,8 @@ func Test_selectRoots(t *testing.T) {
 					},
 				},
 			},
-			homeF:  map[cciptypes.ChainSelector]int{chainS1: 2}, // <-----
-			expErr: true,
+			minObservers: map[cciptypes.ChainSelector]int{chainS1: 2}, // <-----
+			expErr:       true,
 		},
 		{
 			name: "observers not defined",
@@ -155,25 +124,12 @@ func Test_selectRoots(t *testing.T) {
 					},
 				},
 			},
-			homeF:  map[cciptypes.ChainSelector]int{}, // <-------
-			expErr: true,
+			minObservers: map[cciptypes.ChainSelector]int{}, // <-------
+			expErr:       true,
 		},
 		{
-			name: "more than one roots but one of them less than F+1",
-			//nolint:dupl // to be fixed
+			name: "more than one roots but one of them less than f",
 			observations: []rmnSignedObservationWithMeta{
-				{
-					SignedObservation: &rmnpb.SignedObservation{
-						Observation: &rmnpb.Observation{
-							FixedDestLaneUpdates: []*rmnpb.FixedDestLaneUpdate{
-								{
-									LaneSource: &rmnpb.LaneSource{SourceChainSelector: uint64(chainS1)},
-									Root:       root1[:],
-								},
-							},
-						},
-					},
-				},
 				{
 					SignedObservation: &rmnpb.SignedObservation{
 						Observation: &rmnpb.Observation{
@@ -211,14 +167,13 @@ func Test_selectRoots(t *testing.T) {
 					},
 				},
 			},
-			homeF: map[cciptypes.ChainSelector]int{chainS1: 2},
+			minObservers: map[cciptypes.ChainSelector]int{chainS1: 2},
 			expRoots: map[cciptypes.ChainSelector]cciptypes.Bytes32{
 				chainS1: root1,
 			},
 		},
 		{
 			name: "more than one valid roots",
-			//nolint:dupl // to be fixed
 			observations: []rmnSignedObservationWithMeta{
 				{
 					SignedObservation: &rmnpb.SignedObservation{
@@ -256,27 +211,15 @@ func Test_selectRoots(t *testing.T) {
 						},
 					},
 				},
-				{
-					SignedObservation: &rmnpb.SignedObservation{
-						Observation: &rmnpb.Observation{
-							FixedDestLaneUpdates: []*rmnpb.FixedDestLaneUpdate{
-								{
-									LaneSource: &rmnpb.LaneSource{SourceChainSelector: uint64(chainS1)},
-									Root:       root2[:],
-								},
-							},
-						},
-					},
-				},
 			},
-			homeF:  map[cciptypes.ChainSelector]int{chainS1: 1},
-			expErr: true,
+			minObservers: map[cciptypes.ChainSelector]int{chainS1: 1},
+			expErr:       true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			roots, err := selectRoots(tc.observations, tc.homeF)
+			roots, err := selectRoots(tc.observations, tc.minObservers)
 			if tc.expErr {
 				assert.Error(t, err)
 				return
@@ -284,122 +227,6 @@ func Test_selectRoots(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expRoots, roots)
-		})
-	}
-}
-
-func Test_populateUpdatesPerChain(t *testing.T) {
-	testCases := []struct {
-		name           string
-		updateRequests []*rmnpb.FixedDestLaneUpdateRequest
-		rmnNodes       []rmntypes.HomeNodeInfo
-		rmnNodeInfo    map[rmntypes.NodeID]rmntypes.HomeNodeInfo
-		expectedResult map[uint64]updateRequestWithMeta
-		expectedError  error
-	}{
-		{
-			name: "single update request, single supported node",
-			updateRequests: []*rmnpb.FixedDestLaneUpdateRequest{
-				{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-			},
-			rmnNodes: []rmntypes.HomeNodeInfo{
-				{
-					ID:                    1,
-					SupportedSourceChains: mapset.NewSet[cciptypes.ChainSelector](cciptypes.ChainSelector(1)),
-				},
-			},
-			expectedResult: map[uint64]updateRequestWithMeta{
-				1: {
-					Data:     &rmnpb.FixedDestLaneUpdateRequest{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-					RmnNodes: mapset.NewSet[rmntypes.NodeID](rmntypes.NodeID(1)),
-				},
-			},
-			expectedError: nil,
-		},
-		{
-			name: "duplicate sourceChainSelector error",
-			updateRequests: []*rmnpb.FixedDestLaneUpdateRequest{
-				{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-				{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-			},
-			rmnNodes: []rmntypes.HomeNodeInfo{
-				{
-					ID:                    1,
-					SupportedSourceChains: mapset.NewSet[cciptypes.ChainSelector](cciptypes.ChainSelector(1)),
-				},
-			},
-			rmnNodeInfo:   map[rmntypes.NodeID]rmntypes.HomeNodeInfo{},
-			expectedError: errors.New("controller implementation assumes each lane update is for a different chain"),
-		},
-		{
-			name: "Single Update Request, No Supported Nodes",
-			updateRequests: []*rmnpb.FixedDestLaneUpdateRequest{
-				{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-			},
-			rmnNodes: []rmntypes.HomeNodeInfo{
-				{
-					ID:                    2,
-					SupportedSourceChains: mapset.NewSet[cciptypes.ChainSelector](cciptypes.ChainSelector(2)),
-				},
-			},
-			expectedResult: map[uint64]updateRequestWithMeta{
-				1: {
-					Data:     &rmnpb.FixedDestLaneUpdateRequest{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-					RmnNodes: mapset.NewSet[rmntypes.NodeID](),
-				},
-			},
-			expectedError: nil,
-		},
-		{
-			name: "multiple update requests, multiple nodes",
-			updateRequests: []*rmnpb.FixedDestLaneUpdateRequest{
-				{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-				{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 2}},
-				{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 3}},
-			},
-			rmnNodes: []rmntypes.HomeNodeInfo{
-				{ID: 1, SupportedSourceChains: mapset.NewSet[cciptypes.ChainSelector](cciptypes.ChainSelector(1))},
-				{ID: 2, SupportedSourceChains: mapset.NewSet[cciptypes.ChainSelector](cciptypes.ChainSelector(1))},
-				{ID: 3, SupportedSourceChains: mapset.NewSet[cciptypes.ChainSelector](cciptypes.ChainSelector(2))},
-				{ID: 4, SupportedSourceChains: mapset.NewSet[cciptypes.ChainSelector](cciptypes.ChainSelector(1))},
-			},
-			expectedResult: map[uint64]updateRequestWithMeta{
-				1: {
-					Data:     &rmnpb.FixedDestLaneUpdateRequest{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 1}},
-					RmnNodes: mapset.NewSet[rmntypes.NodeID](rmntypes.NodeID(1), rmntypes.NodeID(2), rmntypes.NodeID(4)),
-				},
-				2: {
-					Data:     &rmnpb.FixedDestLaneUpdateRequest{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 2}},
-					RmnNodes: mapset.NewSet[rmntypes.NodeID](rmntypes.NodeID(3)),
-				},
-				3: {
-					Data:     &rmnpb.FixedDestLaneUpdateRequest{LaneSource: &rmnpb.LaneSource{SourceChainSelector: 3}},
-					RmnNodes: mapset.NewSet[rmntypes.NodeID](),
-				},
-			},
-			expectedError: nil,
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			// Run the function
-			result, err := populateUpdatesPerChain(tt.updateRequests, tt.rmnNodes)
-
-			// Check for expected error
-			if tt.expectedError != nil {
-				assert.EqualError(t, err, tt.expectedError.Error())
-			} else {
-				assert.NoError(t, err)
-			}
-
-			// Check for expected result
-			assert.Equal(t, tt.expectedResult, result)
-
-			// Check if rmnNodeInfo was populated correctly
-			for id, info := range tt.rmnNodeInfo {
-				assert.Equal(t, info, tt.rmnNodeInfo[id])
-			}
 		})
 	}
 }
@@ -412,7 +239,7 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 		peerClient := newMockPeerClient(resChan)
 		rmnHomeReaderMock := readerpkg_mock.NewMockRMNHome(t)
 
-		const numNodes = 8
+		const numNodes = 4
 		rmnNodes := make([]rmntypes.HomeNodeInfo, numNodes)
 		for i := 0; i < numNodes; i++ {
 			// deterministically create a public key by seeding with a 32char string.
@@ -421,7 +248,7 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 			require.NoError(t, err)
 			rmnNodes[i] = rmntypes.HomeNodeInfo{
 				ID:                    rmntypes.NodeID(i + 1),
-				PeerID:                [32]byte{1, 2, 3},
+				PeerID:                ragep2ptypes.PeerID([32]byte{1, 2, 3}),
 				SupportedSourceChains: mapset.NewSet(chainS1, chainS2),
 				OffchainPublicKey:     &publicKey,
 			}
@@ -451,7 +278,7 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 		rmnRemoteCfg := rmntypes.RemoteConfig{
 			ContractAddress: []byte{1, 2, 3},
 			ConfigDigest:    cciptypes.Bytes32{0x1, 0x2, 0x3},
-			F:               2,
+			MinSigners:      2,
 			Signers: []rmntypes.RemoteSignerInfo{
 				{
 					OnchainPublicKey: []byte{1, 2, 3},
@@ -484,7 +311,7 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 			updateRequests: updateRequests,
 			rmnHomeMock:    rmnHomeReaderMock,
 			remoteRMNCfg:   rmnRemoteCfg,
-			homeF:          2,
+			minObservers:   2,
 			rmnNodes:       rmnNodes,
 		}
 	}
@@ -497,7 +324,7 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 	t.Run("empty lane update request", func(t *testing.T) {
 		ts := newTestSetup(t)
 
-		ts.rmnHomeMock.On("GetF", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(
+		ts.rmnHomeMock.On("GetMinObservers", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(
 			map[cciptypes.ChainSelector]int{chainS1: 2, chainS2: 2}, nil)
 
 		ts.rmnHomeMock.On("GetRMNNodesInfo", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(ts.rmnNodes, nil)
@@ -515,20 +342,18 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 		ts := newTestSetup(t)
 
 		ts.rmnHomeMock.On("GetRMNNodesInfo", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(ts.rmnNodes, nil)
-		ts.rmnHomeMock.On("GetF", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(
+		ts.rmnHomeMock.On("GetMinObservers", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(
 			map[cciptypes.ChainSelector]int{chainS1: 2, chainS2: 2, chainD1: 2}, nil)
 		go func() {
 			requestIDs, requestedChains := ts.waitForObservationRequestsToBeSent(
-				ts.peerClient, ts.homeF)
+				ts.peerClient, ts.minObservers)
 
 			ts.nodesRespondToTheObservationRequests(
 				ts.peerClient, requestIDs, requestedChains, ts.remoteRMNCfg.ConfigDigest, destChain)
 
 			requestIDs = ts.waitForReportSignatureRequestsToBeSent(
-				t, ts.peerClient,
-				int(ts.remoteRMNCfg.F)+1,
-				ts.homeF,
-			)
+				t, ts.peerClient, int(ts.remoteRMNCfg.MinSigners),
+				ts.minObservers)
 
 			ts.nodesRespondToTheSignatureRequests(ts.peerClient, requestIDs)
 		}()
@@ -541,7 +366,7 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, sigs.LaneUpdates, len(ts.updateRequests))
-		assert.Len(t, sigs.Signatures, int(ts.remoteRMNCfg.F+1))
+		assert.Len(t, sigs.Signatures, int(ts.remoteRMNCfg.MinSigners))
 		// Make sure signature are in ascending signer address order
 		for i := 1; i < len(sigs.Signatures); i++ {
 			assert.True(t, sigs.Signatures[i].R[0] > sigs.Signatures[i-1].R[0])
@@ -556,33 +381,29 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 		ts.rmnController.reportsInitialRequestTimerDuration = time.Nanosecond
 
 		ts.rmnHomeMock.On("GetRMNNodesInfo", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(ts.rmnNodes, nil)
-		ts.rmnHomeMock.On("GetF", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(
+		ts.rmnHomeMock.On("GetMinObservers", cciptypes.Bytes32{0x1, 0x2, 0x3}).Return(
 			map[cciptypes.ChainSelector]int{chainS1: 2, chainS2: 2}, nil)
 
 		go func() {
 			requestIDs, requestedChains := ts.waitForObservationRequestsToBeSent(
-				ts.peerClient, ts.homeF)
+				ts.peerClient, ts.minObservers)
 
 			// requests should be sent to at least two nodes
-			assert.GreaterOrEqual(t, len(requestIDs), ts.homeF)
-			assert.GreaterOrEqual(t, len(requestedChains), ts.homeF)
+			assert.GreaterOrEqual(t, len(requestIDs), ts.minObservers)
+			assert.GreaterOrEqual(t, len(requestedChains), ts.minObservers)
 
 			ts.nodesRespondToTheObservationRequests(
 				ts.peerClient, requestIDs, requestedChains, ts.remoteRMNCfg.ConfigDigest, destChain)
 			time.Sleep(time.Millisecond)
 
 			requestIDs = ts.waitForReportSignatureRequestsToBeSent(
-				t,
-				ts.peerClient,
-				len(ts.remoteRMNCfg.Signers), // wait until all signers have responded
-				ts.homeF,
-			)
+				t, ts.peerClient, len(ts.remoteRMNCfg.Signers), ts.minObservers)
 			time.Sleep(time.Millisecond)
 
 			t.Logf("requestIDs: %v", requestIDs)
 
-			// requests should be sent to more than F+1 nodes, since we hit the timer timeout
-			assert.Greater(t, len(requestIDs), int(ts.remoteRMNCfg.F)+1)
+			// requests should be sent to all nodes, since we hit the timer timeout
+			assert.Equal(t, len(requestIDs), len(ts.remoteRMNCfg.Signers))
 
 			ts.nodesRespondToTheSignatureRequests(ts.peerClient, requestIDs)
 		}()
@@ -595,13 +416,13 @@ func TestClient_ComputeReportSignatures(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, sigs.LaneUpdates, len(ts.updateRequests))
-		assert.Len(t, sigs.Signatures, int(ts.remoteRMNCfg.F+1))
+		assert.Len(t, sigs.Signatures, int(ts.remoteRMNCfg.MinSigners))
 	})
 }
 
 func (ts *testSetup) waitForObservationRequestsToBeSent(
 	rmnClient *mockPeerClient,
-	homeF int,
+	minObservers int,
 ) (map[rmntypes.NodeID]uint64, map[rmntypes.NodeID]mapset.Set[uint64]) {
 	requestIDs := make(map[rmntypes.NodeID]uint64)
 	requestedChains := make(map[rmntypes.NodeID]mapset.Set[uint64])
@@ -617,7 +438,7 @@ func (ts *testSetup) waitForObservationRequestsToBeSent(
 				}
 			}
 		}
-		if requestsPerChain[uint64(chainS1)] >= homeF+1 && requestsPerChain[uint64(chainS2)] >= homeF+1 {
+		if requestsPerChain[uint64(chainS1)] >= minObservers && requestsPerChain[uint64(chainS2)] >= minObservers {
 			for nodeID, reqs := range recvReqs {
 				requestIDs[nodeID] = reqs[0].RequestId
 				requestedChains[nodeID] = mapset.NewSet[uint64]()
@@ -700,12 +521,12 @@ func (ts *testSetup) waitForReportSignatureRequestsToBeSent(
 	t *testing.T,
 	rmnClient *mockPeerClient,
 	expectedResponses int,
-	homeF int,
+	minObservers int,
 ) map[rmntypes.NodeID]uint64 {
 	requestIDs := make(map[rmntypes.NodeID]uint64)
 	// plugin now has received the observation responses and should send
 	// the report requests to the nodes, wait for them to be received by the nodes
-	// should a total of #remoteF requests each one containing the observation requests
+	// should a total of minSigners requests each one containing the observation requests
 	for {
 		time.Sleep(time.Millisecond)
 
@@ -721,7 +542,7 @@ func (ts *testSetup) waitForReportSignatureRequestsToBeSent(
 				if req.GetReportSignatureRequest() == nil {
 					continue
 				}
-				assert.Greater(t, len(req.GetReportSignatureRequest().AttributedSignedObservations), homeF)
+				assert.True(t, len(req.GetReportSignatureRequest().AttributedSignedObservations) >= minObservers)
 
 				aos := req.GetReportSignatureRequest().AttributedSignedObservations
 
@@ -810,12 +631,7 @@ func (m *mockPeerClient) resetReceivedRequests() {
 	m.receivedRequests = make(map[rmntypes.NodeID][]*rmnpb.Request)
 }
 
-func (m *mockPeerClient) InitConnection(
-	_ context.Context,
-	_ cciptypes.Bytes32,
-	_ cciptypes.Bytes32,
-	_ []ragep2ptypes.PeerID,
-	_ []rmntypes.HomeNodeInfo) error {
+func (m *mockPeerClient) InitConnection(_ context.Context, _ cciptypes.Bytes32, _ cciptypes.Bytes32, _ []string) error {
 	return nil
 }
 
@@ -857,6 +673,6 @@ func (a signatureVerifierAlwaysTrue) Verify(_ ed25519.PublicKey, _, _ []byte) bo
 }
 
 func (a signatureVerifierAlwaysTrue) VerifyReportSignatures(
-	_ context.Context, _ []cciptypes.RMNECDSASignature, _ cciptypes.RMNReport, _ []cciptypes.UnknownAddress) error {
+	_ context.Context, _ []cciptypes.RMNECDSASignature, _ cciptypes.RMNReport, _ []cciptypes.Bytes) error {
 	return nil
 }

@@ -250,7 +250,7 @@ func Test_RMNHomePollingWorking(t *testing.T) {
 					require.NotEmpty(t, offchainConfig)
 				}
 
-				minObsMap, err := configPoller.GetF(config.ConfigDigest)
+				minObsMap, err := configPoller.GetMinObservers(config.ConfigDigest)
 				if isEmpty {
 					require.Error(t, err)
 					require.Empty(t, minObsMap)
@@ -262,11 +262,6 @@ func Test_RMNHomePollingWorking(t *testing.T) {
 					require.True(t, exists)
 					require.Equal(t, i+1, minObs)
 				}
-
-				activeConfigDigest, candidateConfigDigest := configPoller.GetAllConfigDigests()
-				require.Equal(t, primaryConfig.ConfigDigest, activeConfigDigest)
-				require.Equal(t, secondaryConfig.ConfigDigest, candidateConfigDigest)
-
 			}
 		})
 	}
@@ -285,7 +280,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Node is observer",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   3,
+				MinObservers:        3,
 				ObserverNodesBitmap: big.NewInt(7), // 111 in binary
 			},
 			nodeIndex:      1,
@@ -297,7 +292,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Node is not observer",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   3,
+				MinObservers:        3,
 				ObserverNodesBitmap: big.NewInt(5), // 101 in binary
 			},
 			nodeIndex:      1,
@@ -309,7 +304,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Node index out of range (high)",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   3,
+				MinObservers:        3,
 				ObserverNodesBitmap: big.NewInt(7), // 111 in binary
 			},
 			nodeIndex:      3,
@@ -321,7 +316,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Negative node index",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   3,
+				MinObservers:        3,
 				ObserverNodesBitmap: big.NewInt(7), // 111 in binary
 			},
 			nodeIndex:      -1,
@@ -333,7 +328,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Invalid bitmap (out of bounds)",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   3,
+				MinObservers:        3,
 				ObserverNodesBitmap: big.NewInt(8), // 1000 in binary
 			},
 			nodeIndex:      0,
@@ -345,7 +340,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Zero total nodes",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   3,
+				MinObservers:        3,
 				ObserverNodesBitmap: big.NewInt(1),
 			},
 			nodeIndex:      0,
@@ -357,7 +352,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Total nodes exceeds 256",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   3,
+				MinObservers:        3,
 				ObserverNodesBitmap: big.NewInt(1),
 			},
 			nodeIndex:      0,
@@ -369,7 +364,7 @@ func TestIsNodeObserver(t *testing.T) {
 			name: "Last valid node is observer",
 			sourceChain: SourceChain{
 				ChainSelector:       cciptypes.ChainSelector(1),
-				F:                   1,
+				MinObservers:        1,
 				ObserverNodesBitmap: new(big.Int).SetBit(big.NewInt(0), 255, 1), // Only the 256th bit is set
 			},
 			nodeIndex:      255,
@@ -409,7 +404,7 @@ func createTestRMNHomeConfigs(
 				SourceChains: []SourceChain{
 					{
 						ChainSelector:       cciptypes.ChainSelector(id),
-						F:                   uint64(id),
+						MinObservers:        uint64(id),
 						ObserverNodesBitmap: big.NewInt(int64(id)),
 					},
 				},

@@ -2,8 +2,9 @@ package inmem
 
 import (
 	"context"
-	"math/big"
 	"time"
+
+	"github.com/goplugin/plugin-common/pkg/types"
 
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	"github.com/goplugin/plugin-ccip/internal/libs/slicelib"
@@ -11,8 +12,6 @@ import (
 	"github.com/goplugin/plugin-ccip/pkg/reader"
 	cciptypes "github.com/goplugin/plugin-ccip/pkg/types/ccipocr3"
 	"github.com/goplugin/plugin-ccip/plugintypes"
-
-	"github.com/goplugin/plugin-common/pkg/types"
 )
 
 type MessagesWithMetadata struct {
@@ -122,19 +121,9 @@ func (r InMemoryCCIPReader) Nonces(
 
 func (r InMemoryCCIPReader) GetAvailableChainsFeeComponents(
 	ctx context.Context,
-	chains []cciptypes.ChainSelector,
 ) map[cciptypes.ChainSelector]types.ChainFeeComponents {
 	panic("implement me")
 }
-
-func (r InMemoryCCIPReader) GetDestChainFeeComponents(_ context.Context) (types.ChainFeeComponents, error) {
-	feeComponents := types.ChainFeeComponents{
-		ExecutionFee:        big.NewInt(0),
-		DataAvailabilityFee: big.NewInt(0),
-	}
-	return feeComponents, nil
-}
-
 func (r InMemoryCCIPReader) GetWrappedNativeTokenPriceUSD(
 	ctx context.Context,
 	selectors []cciptypes.ChainSelector,
@@ -168,12 +157,6 @@ func (r InMemoryCCIPReader) LinkPriceUSD(ctx context.Context) (cciptypes.BigInt,
 // Returns a bool indicating whether something was updated.
 func (r InMemoryCCIPReader) Sync(_ context.Context, _ reader.ContractAddresses) error {
 	return nil
-}
-
-func (r InMemoryCCIPReader) GetMedianDataAvailabilityGasConfig(
-	ctx context.Context,
-) (cciptypes.DataAvailabilityGasConfig, error) {
-	return cciptypes.DataAvailabilityGasConfig{}, nil
 }
 
 // Interface compatibility check.

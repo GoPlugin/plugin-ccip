@@ -12,8 +12,6 @@ import (
 
 	"github.com/goplugin/plugin-common/pkg/logger"
 
-	typconv "github.com/goplugin/plugin-ccip/internal/libs/typeconv"
-
 	"github.com/goplugin/plugin-ccip/commit/merkleroot/rmn"
 	rmntypes "github.com/goplugin/plugin-ccip/commit/merkleroot/rmn/types"
 	"github.com/goplugin/plugin-ccip/internal/plugincommon"
@@ -170,10 +168,9 @@ func buildReport(
 			MerkleRoot    cciptypes.Bytes32
 			OnRampAddress string
 		}
-
 		signedRoots := mapset.NewSet[rootKey]()
 		for _, laneUpdate := range q.RMNSignatures.LaneUpdates {
-			rk := rootKey{
+			signedRoots.Add(rootKey{
 				ChainSel: cciptypes.ChainSelector(laneUpdate.LaneSource.SourceChainSelector),
 				SeqNumsRange: cciptypes.NewSeqNumRange(
 					cciptypes.SeqNum(laneUpdate.ClosedInterval.MinMsgNr),
@@ -181,30 +178,23 @@ func buildReport(
 				),
 				MerkleRoot: cciptypes.Bytes32(laneUpdate.Root),
 				// NOTE: convert address into a comparable value for mapset.
-				OnRampAddress: typconv.AddressBytesToString(
-					laneUpdate.LaneSource.OnrampAddress,
-					laneUpdate.LaneSource.SourceChainSelector),
-			}
-
-			lggr.Infow("Found signed root", "root", rk)
-			signedRoots.Add(rk)
+				OnRampAddress: string(laneUpdate.LaneSource.OnrampAddress),
+			})
 		}
 
 		// Only report roots that are present in RMN signatures.
 		rootsToReport := make([]cciptypes.MerkleRootChain, 0)
 		for _, root := range roots {
-			rk := rootKey{
-				ChainSel:      root.ChainSel,
-				SeqNumsRange:  root.SeqNumsRange,
-				MerkleRoot:    root.MerkleRoot,
-				OnRampAddress: typconv.AddressBytesToString(root.OnRampAddress, uint64(root.ChainSel)),
-			}
-
-			if signedRoots.Contains(rk) {
-				lggr.Infow("Root is signed, appending to the report", "root", rk)
+			if signedRoots.Contains(rootKey{
+				ChainSel:     root.ChainSel,
+				SeqNumsRange: root.SeqNumsRange,
+				MerkleRoot:   root.MerkleRoot,
+				// NOTE: convert address into a comparable value for mapset.
+				OnRampAddress: string(root.OnRampAddress),
+			}) {
 				rootsToReport = append(rootsToReport, root)
 			} else {
-				lggr.Warnw("Root not signed, skipping from the report", "root", rk)
+				lggr.Warnw("skipping merkle root not signed by RMN", "root", root)
 			}
 		}
 		roots = rootsToReport
@@ -215,7 +205,9 @@ func buildReport(
 		RootsToReport:       roots,
 		OffRampNextSeqNums:  prevOutcome.OffRampNextSeqNums,
 		RMNReportSignatures: sigs,
-		RMNRemoteCfg:        prevOutcome.RMNRemoteCfg,
+		// TODO: Calculate it for real
+		RMNRawVs:     cciptypes.NewBigIntFromInt64(0),
+		RMNRemoteCfg: prevOutcome.RMNRemoteCfg,
 	}
 
 	return outcome
